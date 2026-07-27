@@ -1,5 +1,9 @@
 venv/
 __pycache__/
 Termos Gerados/
+build/
+dist/
+*.spec
 *.pyc
+~$*
 .env
