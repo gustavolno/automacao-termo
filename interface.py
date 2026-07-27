@@ -99,8 +99,9 @@ def parse_whatsapp_message(texto):
     endereco = match_end.group(1).strip() if match_end else ""
 
     # ── Valor ORIGINAL da dívida ──────────────────────────
-    # Captura o valor ANTES do desconto (valor devido / original)
+    # Captura o valor ANTES do desconto (valor devido / original / débito)
     padroes_divida = [
+        r"valor\s+(?:do\s+)?d[e\u00e9]bito\s*:?\s*R?\$?\s*([\d\.,]+)",
         r"valor\s+(?:original|devido|da\s+d[\u00edivida])\s*:?\s*R?\$?\s*([\d\.,]+)",
         r"valor\s+devido\s*:?\s*R?\$?\s*([\d\.,]+)",
     ]
@@ -114,9 +115,9 @@ def parse_whatsapp_message(texto):
     # ── Valor DO ACORDO (com desconto) ────────────────────
     # Este é o valor sobre o qual se calculam honorários e GEAP
     padroes_acordo = [
+        r"valor\s+fechado\s+com\s+o?\s*desconto\s*:?\s*R?\$?\s*([\d\.,]+)",
         r"valor\s+para\s+pagamento\s+parcelado\s+com\s+desconto\s*:?\s*R?\$?\s*([\d\.,]+)",
         r"valor\s+(?:total|do\s+acordo|acordado|a\s+pagar)\s*:?\s*R?\$?\s*([\d\.,]+)",
-        r"valor\s*:?\s*R?\$?\s*([\d\.,]+)",
     ]
     valor_acordo = ""
     for p in padroes_acordo:
@@ -131,11 +132,12 @@ def parse_whatsapp_message(texto):
         valor_divida = valor_acordo
 
     # ── Entrada: valor + vencimento ───────────────────────
-    match_entrada = m(r"entrada\s*:?\s*R?\$?\s*([\d\.,]+)")
+    # Aceita "Entrada: R$", "Entrada de R$", "Entrada R$"
+    match_entrada = m(r"entrada\s*(?:de|:)?\s*R?\$?\s*([\d\.,]+)")
     valor_entrada = match_entrada.group(1).strip() if match_entrada else ""
 
-    # Vencimento da entrada: "para o dia 27/07/2026" ou "para o dia 24/07/2026"
-    match_venc_ent = m(r"entrada[^\n]*?(?:para o dia|vencimento[^\n]*?dia)\s*(\d{2}/\d{2}/\d{4})")
+    # Vencimento da entrada: "para o dia DD/MM/AAAA" ou "vencimento em DD/MM/AAAA"
+    match_venc_ent = m(r"entrada[^\n]*?(?:para\s+o\s+dia|vencimento\s+(?:em|para)?)\s*(\d{2}/\d{2}/\d{4})")
     venc_entrada = match_venc_ent.group(1).strip() if match_venc_ent else ""
 
     # ── Parcelas: qtd, valor, data de início ─────────────────
@@ -161,11 +163,12 @@ def parse_whatsapp_message(texto):
         dia_parcela = ""
 
     # ── Competências ───────────────────────────────────
+    # Só extrai competências se houver uma linha explícita de "Competência:"
     match_comp_linha = m(r"compet[\u00ea\u0065]nci[ao][s]?\s*:?\s*([^\n]+)")
     if match_comp_linha:
         competencias = processar_competencias(match_comp_linha.group(1))
     else:
-        competencias = processar_competencias(texto)
+        competencias = ""  # Não tenta adivinhar de datas aleatórias
 
     return {
         "nome": nome,
