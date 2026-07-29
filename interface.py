@@ -305,6 +305,8 @@ class App(tk.Tk):
 
         btn_frame = tk.Frame(self, bg=COR_FUNDO, padx=16, pady=8)
         btn_frame.pack(fill="x")
+        btn_frame.columnconfigure(0, weight=3)
+        btn_frame.columnconfigure(1, weight=1)
 
         self.btn_gerar = tk.Button(
             btn_frame, text="⚡  GERAR TERMO DE ACORDO",
@@ -314,9 +316,19 @@ class App(tk.Tk):
             relief="flat", cursor="hand2", padx=20, pady=8,
             command=self._gerar
         )
-        self.btn_gerar.pack(fill="x")
+        self.btn_gerar.grid(row=0, column=0, sticky="ew", padx=(0, 8))
         self.btn_gerar.bind("<Enter>", lambda e: self.btn_gerar.config(bg=COR_OURO_ESC))
         self.btn_gerar.bind("<Leave>", lambda e: self.btn_gerar.config(bg=COR_OURO))
+
+        self.btn_reset = tk.Button(
+            btn_frame, text="🧹  RESETAR CAMPOS",
+            font=("Segoe UI", 10, "bold"),
+            bg=COR_BORDA, fg=COR_TEXTO,
+            activebackground="#4A4A4C", activeforeground=COR_TEXTO,
+            relief="flat", cursor="hand2", padx=14, pady=8,
+            command=self._reset_campos
+        )
+        self.btn_reset.grid(row=0, column=1, sticky="ew")
 
     def _limpar_ph(self, _e):
         if self.txt.get("1.0", "end-1c") == PLACEHOLDER:
@@ -327,6 +339,18 @@ class App(tk.Tk):
         if not self.txt.get("1.0", "end-1c").strip():
             self.txt.insert("1.0", PLACEHOLDER)
             self.txt.config(fg=COR_CINZA)
+
+    def _reset_campos(self):
+        """Limpa o campo de texto da mensagem e todos os campos extraídos da área de revisão."""
+        self.txt.delete("1.0", "end")
+        self.txt.insert("1.0", PLACEHOLDER)
+        self.txt.config(fg=COR_CINZA)
+
+        for entry in self.entries.values():
+            entry.delete(0, "end")
+            entry.config(highlightbackground=COR_BORDA, highlightcolor=COR_OURO)
+
+        self._set_status("Aguardando mensagem...", COR_CINZA)
 
     def _interpretar(self):
         msg = self.txt.get("1.0", "end-1c").strip()
@@ -378,6 +402,10 @@ class App(tk.Tk):
             )
             if resp:
                 os.startfile(os.path.abspath(caminho))
+
+            # Reseta os campos automaticamente após gerar
+            self._reset_campos()
+
         except Exception as e:
             self._set_status(f"❌ Erro ao gerar: {e}", COR_VERMELHO)
             messagebox.showerror("Erro ao gerar termo", str(e))
