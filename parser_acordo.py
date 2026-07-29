@@ -101,9 +101,8 @@ def calcular_valor_acordo(entrada: Optional[Decimal], qp: Optional[int], valor_p
 def processar_competencias(texto: str) -> str:
     if not texto:
         return ""
-    texto_clean = texto.strip(" ,.")
-    # Se já possui padrão explícito de intervalo com texto (ex: '03/2024 a 08/2024' ou '01/2025 até 06/2026')
-    if re.search(r"\d{2}/\d{4}\s+(?:a|at[eé]|-)\s+\d{2}/\d{4}", texto_clean, re.IGNORECASE):
+    texto_clean = texto.strip(" :.,\n\r")
+    if re.search(r"\d{2}(?:/\d{2})?/\d{4}\s+(?:a|at[eé]|-)\s+\d{2}(?:/\d{2})?/\d{4}", texto_clean, re.IGNORECASE):
         return texto_clean
 
     padrao_data = r"\b(\d{2}/\d{2}/\d{4}|\d{2}/\d{4})\b"
@@ -152,12 +151,12 @@ def processar_competencias(texto: str) -> str:
             partes.append(f"{g[0].strftime('%m/%Y')} a {g[-1].strftime('%m/%Y')}")
 
     if len(partes) > 1:
-        return ", ".join(partes[:-1]) + " e " + partes[-1]
-    return partes[0]
+        return (", ".join(partes[:-1]) + " e " + partes[-1]).strip()
+    return partes[0].strip()
 
 
 # ============================================================
-# EXTRATORES DE CAMPOS ESPECÍFICOS E REGRAS DE RÓTULO
+# MAPA DE RÓTULOS E REGRAS DE FRONTEIRA
 # ============================================================
 
 ROTULOS_MAP = [
@@ -192,9 +191,12 @@ ROTULOS_MAP = [
         r"d[eé]bito\s+no\s+valor\s+de", r"a\s+d[ií]vida\s+[eé]\s+de"
     ]),
     ("valor_acordo", [
-        r"valor\s+fechado\s+com\s+o?\s*desconto", r"valor\s+para\s+pagamento\s+parcelado\s+com\s+desconto",
+        r"valor\s+total\s+negociado", r"valor\s+total\s+acordado", r"valor\s+total\s+do\s+acordo",
+        r"valor\s+fechado\s+com\s+o?\s*desconto", r"valor\s+fechado\s+com\s+desconto",
+        r"valor\s+para\s+pagamento\s+parcelado\s+com\s+desconto",
         r"valor\s+total\s+para\s+negocia[cç][aã]o", r"valor\s+do\s+acordo", r"valor\s+negociado",
-        r"valor\s+final", r"acordo\s+no\s+valor\s+de", r"ficou\s+negociada\s+por", r"resultando\s+no\s+valor\s+total\s+de"
+        r"valor\s+acordado", r"valor\s+final", r"valor\s+fechado",
+        r"acordo\s+no\s+valor\s+de", r"ficou\s+negociada\s+por", r"resultando\s+no\s+valor\s+total\s+de"
     ]),
     ("condicao", [
         r"condi[cç][oõ]es\s+da\s+negocia[cç][aã]o", r"condi[cç][aã]o\s+da\s+negocia[cç][aã]o",
@@ -206,8 +208,11 @@ ROTULOS_MAP = [
     ("entrada", [
         r"entrada\s+de", r"entrada", r"sinal\s+de", r"sinal"
     ]),
-    ("parcelas", [
-        r"parcelamento", r"saldo\s+em", r"saldo", r"parcelas"
+    ("valor_parcela", [
+        r"valor\s+da\s+parcela", r"valor\s+de\s+cada\s+parcela", r"valor\s+por\s+parcela", r"valor\s+da\s+presta[cç][aã]o"
+    ]),
+    ("quantidade_parcelas", [
+        r"quantidade\s+de\s+parcelas", r"qtd\.?\s+de\s+parcelas", r"n[uú]mero\s+de\s+parcelas", r"qtd\s+parcelas", r"parcelas"
     ]),
     ("inicio_parcelas", [
         r"in[ií]cio\s+das\s+parcelas", r"iniciando\s+em", r"primeira\s+parcela"
@@ -219,6 +224,10 @@ ROTULOS_MAP = [
     ("competencias", [
         r"compet[eê]ncias\s+negociadas", r"compet[eê]ncias", r"per[ií]odo\s+negociado"
     ]),
+    ("cabeçalho_email", [
+        r"data\s*/\s*hora\s+do\s+atendimento", r"tipo\s+do\s+atendimento", r"assunto\s+do\s+atendimento",
+        r"forma\s+de\s+atendimento", r"detalhamento", r"atenciosamente", r"analista\s+de\s+testes"
+    ]),
 ]
 
 
@@ -226,7 +235,10 @@ def localizar_rotulos(texto: str) -> List[Tuple[int, int, str]]:
     ocorrencias = []
     for campo, padroes in ROTULOS_MAP:
         for p in padroes:
-            regex = r"(?i)\b" + p + r"\b\s*:?"
+            if campo == "quantidade_parcelas" and p == "parcelas":
+                regex = r"(?i)\bparcelas\s*:"
+            else:
+                regex = r"(?i)\b" + p + r"\b\s*:?"
             for match in re.finditer(regex, texto):
                 ocorrencias.append((match.start(), match.end(), campo))
 
@@ -253,8 +265,10 @@ def extrair_campos_rotulados(texto: str) -> Dict[str, str]:
         return extraidos
 
     for i, (start, end, campo) in enumerate(rotulos):
+        if campo == "cabeçalho_email":
+            continue
         next_start = rotulos[i + 1][0] if i + 1 < len(rotulos) else len(texto)
-        segmento = texto[end:next_start].strip()
+        segmento = texto[end:next_start].strip(" :")
         if campo not in extraidos or not extraidos[campo]:
             extraidos[campo] = segmento
 
@@ -291,25 +305,18 @@ def extrair_processo(texto: str) -> str:
 
 
 def extrair_telefones(texto: str, cpf_cliente: str = "") -> str:
-    """
-    Extrai telefone/celular sem confundir com CPF ou processo.
-    """
-    # Procura número com DDD: ex: (61) 90000-0003, 61 90000-0003, 61900000003
     padrao_tel = r"\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}"
     matches = re.findall(padrao_tel, texto)
 
     cpf_digs = re.sub(r"\D", "", cpf_cliente)
-
     unicos = []
     vistos = set()
 
     for m in matches:
         m_clean = m.strip(" ,.")
         digs = re.sub(r"\D", "", m_clean)
-        # Ignora se for idêntico ao CPF do cliente
         if digs and digs == cpf_digs:
             continue
-        # Ignora sequências numéricas de processo (ex: 20 dígitos)
         if len(digs) in (10, 11) and digs not in vistos:
             vistos.add(digs)
             unicos.append(m_clean)
@@ -343,6 +350,8 @@ def extrair_cep(texto: str) -> str:
 def limpar_nome(nome_raw: str) -> str:
     if not nome_raw:
         return ""
+    primeira_linha = nome_raw.split("\n")[0].strip()
+
     prefixos = [
         r"^(?:boa\s+tarde|bom\s+dia|boa\s+noite)\.?",
         r"^prezados?\.?",
@@ -353,11 +362,11 @@ def limpar_nome(nome_raw: str) -> str:
         r"^cliente",
         r"^benefici[aá]ri[oa]"
     ]
-    res = nome_raw.strip()
+    res = primeira_linha
     for p in prefixos:
         res = re.sub(p, "", res, flags=re.IGNORECASE).strip()
 
-    res = re.split(r"(?i),?\s*(?:cpf|cnpj|processo|telefone|e-?mail|mora\s+na|residente|valor|\.|$)", res)[0]
+    res = re.split(r"(?i),?\s*(?:cpf|cnpj|processo|telefone|e-?mail|mora\s+na|residente|valor|data|\.|$)", res)[0]
     res = re.sub(r"[^\w\s\.\-']", "", res).strip()
     res = re.sub(r"\s+", " ", res)
     return res
@@ -404,13 +413,11 @@ def extrair_inicio_parcelas(texto: str) -> str:
 def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     texto = normalizar_texto(texto_bruto)
     dados = DadosAcordo()
-
     rotulos_dict = extrair_campos_rotulados(texto)
 
     # NOME
     if "nome" in rotulos_dict and rotulos_dict["nome"]:
         dados.nome = limpar_nome(rotulos_dict["nome"])
-
     if not dados.nome:
         match_nome_nat = re.search(r"(?i)(?:acordo\s+fechado\s+para|acordo\s+realizado\s+com|o\s+cliente|cliente:?|benefici[aá]ri[oa]:?)\s+([A-ZÀ-Ÿa-zà-ÿ\s]+?)(?:,?\s*CPF|\.|\n|$)", texto)
         if match_nome_nat:
@@ -486,7 +493,7 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     if "valor_acordo" in rotulos_dict and rotulos_dict["valor_acordo"]:
         dec_acordo = parse_valor_brl(rotulos_dict["valor_acordo"])
     if dec_acordo is None:
-        m_va = re.search(r"(?i)\b(?:valor\s+(?:do\s+acordo|negociado|final|fechado\s+com\s+o?\s*desconto)|ficou\s+negociada\s+por|acordo\s+no\s+valor\s+de|resultando\s+no\s+valor\s+total\s+de)\s*:?\s*R?\$?\s*([\d\.,]+)", texto)
+        m_va = re.search(r"(?i)\b(?:valor\s+(?:total\s+negociado|total\s+acordado|do\s+acordo|negociado|final|fechado\s+com\s+o?\s*desconto)|ficou\s+negociada\s+por|acordo\s+no\s+valor\s+de|resultando\s+no\s+valor\s+total\s+de)\s*:?\s*R?\$?\s*([\d\.,]+)", texto)
         if m_va:
             dec_acordo = parse_valor_brl(m_va.group(1))
 
@@ -502,16 +509,32 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     if dec_entrada is not None:
         dados.valor_entrada = formatar_valor_brl(dec_entrada)
 
-    qp_str, vp_str = "", ""
-    if "parcelas" in rotulos_dict and rotulos_dict["parcelas"]:
-        qp_str, vp_str = extrair_parcelamento(rotulos_dict["parcelas"])
-    if not qp_str:
-        qp_str, vp_str = extrair_parcelamento(texto)
+    # Qtd. de Parcelas
+    qp_str = ""
+    if "quantidade_parcelas" in rotulos_dict and rotulos_dict["quantidade_parcelas"]:
+        m_qp = re.search(r"\b(\d{1,3})\b", rotulos_dict["quantidade_parcelas"])
+        if m_qp:
+            qp_str = m_qp.group(1)
+
+    # Valor da Parcela
+    vp_str = ""
+    if "valor_parcela" in rotulos_dict and rotulos_dict["valor_parcela"]:
+        dec_vp = parse_valor_brl(rotulos_dict["valor_parcela"])
+        if dec_vp is not None:
+            vp_str = formatar_valor_brl(dec_vp)
+
+    # Se não capturou via rótulos separados, tenta expressão combinada (ex: '20x de R$ 500,00')
+    if not qp_str or not vp_str:
+        comb_qp, comb_vp = extrair_parcelamento(texto)
+        if not qp_str:
+            qp_str = comb_qp
+        if not vp_str:
+            vp_str = comb_vp
 
     dados.quantidade_parcelas = qp_str
     dados.valor_parcela = vp_str
 
-    # CÁLCULO AUTOMÁTICO DO VALOR DO ACORDO
+    # CÁLCULO AUTOMÁTICO DO VALOR DO ACORDO (Caso não fornecido expressamente)
     dec_vp = parse_valor_brl(vp_str)
     try:
         int_qp = int(qp_str) if qp_str else None
@@ -522,7 +545,7 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
         dec_calc = calcular_valor_acordo(dec_entrada, int_qp, dec_vp)
         if dec_calc is not None:
             dec_acordo = dec_calc
-            dados.avisos.append("Valor do acordo calculated automaticamente")
+            dados.avisos.append("Valor do acordo calculado automaticamente")
     else:
         dec_calc = calcular_valor_acordo(dec_entrada, int_qp, dec_vp)
         if dec_calc is not None and abs(dec_acordo - dec_calc) > Decimal("1.00"):

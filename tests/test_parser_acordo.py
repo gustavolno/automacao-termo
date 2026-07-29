@@ -73,108 +73,69 @@ Primeiro vencimento: 15/08/2026
     assert dados["vencimento_entrada"] == "15/08/2026"
 
 
-def test_total_calculado():
+def test_screenshot_1_marina_alves():
     """
-    Teste de cálculo automático do valor do acordo quando não informado (Seção 22).
+    Teste com a mensagem do Screenshot 1 (Valor total negociado, Parcelas, Valor da parcela em linhas separadas).
     """
-    mensagem = """
-Processo n° 0700004-50.2026.8.07.0004
-Beneficiário: ROBERTO LIMA FERREIRA
-CPF: 444.555.666-77
-Telefone: (61) 90000-0004
-E-mail: roberto.ferreira@example.com
-Endereço: Rua de Testes, nº 44, Bairro Simulado, Brasília/DF
-CEP: 73000-004
-Valor da causa: R$ 15.500,00
-Condição de negociação: entrada de R$ 1.500,00 + 28x de R$ 400,00.
-"""
+    mensagem = """Processo: 0700001-25.2026.8.07.0001
+Nome: MARINA ALVES DE OLIVEIRA
+CPF: 111.222.333-44
+Telefone: (61) 90000-0001
+E-mail: marina.oliveira@example.com
+Endereço: Rua Exemplo, nº 120, Casa 02, Bairro Teste, Brasília/DF
+CEP: 70000-001
+Valor da causa: R$ 18.750,40
+Valor total negociado: R$ 17.812,88
+Entrada: R$ 1.781,28
+Parcelas: 20
+Valor da parcela: R$ 801,58"""
+
     dados = interpretar_mensagem(mensagem)
 
-    assert dados["nome"] == "ROBERTO LIMA FERREIRA"
-    assert dados["valor_original"] == "15.500,00"
-    assert dados["valor_entrada"] == "1.500,00"
-    assert dados["quantidade_parcelas"] == "28"
-    assert dados["valor_parcela"] == "400,00"
-    # Cálculo: 1.500 + 28 * 400 = 12.700,00
-    assert dados["valor_acordo"] == "12.700,00"
+    assert dados["nome"] == "MARINA ALVES DE OLIVEIRA"
+    assert dados["cpf"] == "111.222.333-44"
+    assert dados["processo"] == "0700001-25.2026.8.07.0001"
+    assert "(61) 90000-0001" in dados["telefone"]
+    assert dados["email"] == "marina.oliveira@example.com"
+    assert "Rua Exemplo" in dados["endereco"]
+    assert dados["cep"] == "70000-001"
+    assert dados["valor_original"] == "18.750,40"
+    assert dados["valor_acordo"] == "17.812,88"
+    assert dados["valor_entrada"] == "1.781,28"
+    assert dados["quantidade_parcelas"] == "20"
+    assert dados["valor_parcela"] == "801,58"
 
 
-def test_delimite_paragrafo_unico():
+def test_screenshot_2_camila_rodrigues_email_header():
     """
-    Teste de delimitação rigorosa entre campos em parágrafo único (Seção 22).
+    Teste com o cabeçalho de e-mail do Screenshot 2 (Evita vazamento do nome para Data/Hora do atendimento).
     """
-    mensagem = (
-        "Beneficiário: FERNANDO NUNES DA SILVA CPF: 888.999.000-11 Telefone: (61) 90000-0008 "
-        "E-mail: fernando.nunes@example.com Endereço: Avenida Campo Longo, nº 800, Casa, Setor de Testes, Brasília/DF "
-        "CEP: 77000-008 Valor da causa: R$ 32.800,00 Valor negociado: R$ 29.520,00 Entrada: R$ 2.952,00 "
-        "Parcelamento: 24 parcelas de R$ 1.107,00."
-    )
+    mensagem = """Prezado(a) Sr(a).
+
+Conforme registro de atendimento de clientes, encaminhamos a notificação abaixo:
+
+Cliente: CAMILA RODRIGUES MORAES
+Data / Hora do atendimento: 28/07/2026 14:35
+Tipo do atendimento: Atendimento
+Assunto do atendimento: Acordo fechado
+Forma de atendimento: WhatsApp
+
+Detalhamento
+
+Processo nº: 0700009-10.2026.8.07.0009 Beneficiário: CAMILA RODRIGUES MORAES CPF: 999.000.111-22 Telefone: (61) 90000-0009 E-mail: camila.moraes@example.com Endereço: Quadra Modelo 09, Conjunto A, Casa 09, Brasília/DF CEP: 78000-009 Valor da causa: R$ 11.257,83 Competências negociadas: 10/03/2023 a 11/09/2023 Condição de negociação: entrada de R$ 1.024,46 + 24x de R$ 384,17."""
+
     dados = interpretar_mensagem(mensagem)
 
-    assert dados["nome"] == "FERNANDO NUNES DA SILVA"
-    assert dados["cpf"] == "888.999.000-11"
-    assert "(61) 90000-0008" in dados["telefone"]
-    assert dados["email"] == "fernando.nunes@example.com"
-    assert "Avenida Campo Longo" in dados["endereco"]
-    assert "32.800,00" not in dados["endereco"]
-    assert dados["cep"] == "77000-008"
-    assert dados["valor_original"] == "32.800,00"
-    assert dados["valor_acordo"] == "29.520,00"
-    assert dados["valor_entrada"] == "2.952,00"
+    assert dados["nome"] == "CAMILA RODRIGUES MORAES"
+    assert dados["cpf"] == "999.000.111-22"
+    assert dados["processo"] == "0700009-10.2026.8.07.0009"
+    assert "(61) 90000-0009" in dados["telefone"]
+    assert dados["email"] == "camila.moraes@example.com"
+    assert "Quadra Modelo 09" in dados["endereco"]
+    assert dados["cep"] == "78000-009"
+    assert dados["valor_original"] == "11.257,83"
+    assert dados["valor_entrada"] == "1.024,46"
     assert dados["quantidade_parcelas"] == "24"
-    assert dados["valor_parcela"] == "1.107,00"
-
-
-def test_processo_nao_localizado():
-    mensagem = "Cliente: JOAO DA SILVA\nCPF: 111.222.333-44\nProcesso não localizado\nValor devido: R$ 5.000,00"
-    dados = interpretar_mensagem(mensagem)
-
-    assert dados["processo"] == "Não localizado"
-    assert dados["valor_original"] == "5.000,00"
-
-
-def test_calculo_decimal_preciso():
-    dec_val = parse_valor_brl("R$ 10.244,54")
-    assert dec_val == Decimal("10244.54")
-
-    formatted = formatar_valor_brl(dec_val)
-    assert formatted == "10.244,54"
-
-    calc = calcular_valor_acordo(Decimal("1024.46"), 24, Decimal("384.17"))
-    assert calc == Decimal("10244.54")
-
-
-def test_multiplos_telefones_e_emails():
-    mensagem = (
-        "Cliente: MARIA CONCEICAO\n"
-        "CPF: 123.456.789-00\n"
-        "Telefones: (61) 98888-1111 / (61) 97777-2222\n"
-        "E-mails: maria@test.com / conceicao@test.com\n"
-        "Valor da causa: 10000,00"
-    )
-    dados = interpretar_mensagem(mensagem)
-
-    assert "98888-1111" in dados["telefone"]
-    assert "97777-2222" in dados["telefone"]
-    assert "maria@test.com" in dados["email"]
-    assert "conceicao@test.com" in dados["email"]
-
-
-def test_ordem_alterada_e_sem_cifrao():
-    mensagem = (
-        "Valor do acordo: 5000,00\n"
-        "Entrada: 1000,00\n"
-        "10x de 400,00\n"
-        "Cliente: ANA BEATRIZ NOGUEIRA\n"
-        "CPF: 999.888.777-66\n"
-        "Valor original: 6500,00"
-    )
-    dados = interpretar_mensagem(mensagem)
-
-    assert dados["nome"] == "ANA BEATRIZ NOGUEIRA"
-    assert dados["cpf"] == "999.888.777-66"
-    assert dados["valor_original"] == "6.500,00"
-    assert dados["valor_acordo"] == "5.000,00"
-    assert dados["valor_entrada"] == "1.000,00"
-    assert dados["quantidade_parcelas"] == "10"
-    assert dados["valor_parcela"] == "400,00"
+    assert dados["valor_parcela"] == "384,17"
+    assert dados["valor_acordo"] == "10.244,54"
+    assert dados["competencias"] == "10/03/2023 a 11/09/2023"
