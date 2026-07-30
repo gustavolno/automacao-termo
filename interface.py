@@ -364,6 +364,7 @@ class App(tk.Tk):
             entry.delete(0, "end")
             val = campos.get(chave, "")
             entry.insert(0, val)
+            entry.xview_moveto(0)
             if not val and chave in ("nome", "cpf", "valor_acordo"):
                 entry.config(highlightbackground=COR_VERMELHO, highlightcolor=COR_VERMELHO)
             else:

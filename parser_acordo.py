@@ -61,20 +61,23 @@ def normalizar_texto(texto: str) -> str:
 def parse_valor_brl(texto: str) -> Optional[Decimal]:
     if not texto:
         return None
-    t = re.sub(r"[^\d.,]", "", texto.strip())
-    if not t:
-        return None
-
-    if "," in t and "." in t:
-        t = t.replace(".", "").replace(",", ".")
-    elif "," in t:
-        t = t.replace(",", ".")
-    elif "." in t:
-        parts = t.split(".")
-        if len(parts) == 2 and len(parts[1]) == 2:
-            pass
-        else:
-            t = t.replace(".", "")
+    match = re.search(r"\b(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2}|\d+\.\d{2})\b", texto)
+    if match:
+        t = match.group(1).replace(".", "").replace(",", ".")
+    else:
+        t = re.sub(r"[^\d.,]", "", texto.strip())
+        if not t:
+            return None
+        if "," in t and "." in t:
+            t = t.replace(".", "").replace(",", ".")
+        elif "," in t:
+            t = t.replace(",", ".")
+        elif "." in t:
+            parts = t.split(".")
+            if len(parts) == 2 and len(parts[1]) == 2:
+                pass
+            else:
+                t = t.replace(".", "")
 
     try:
         val = Decimal(t)
@@ -102,8 +105,9 @@ def processar_competencias(texto: str) -> str:
     if not texto:
         return ""
     texto_clean = texto.strip(" :.,\n\r")
-    if re.search(r"\d{2}(?:/\d{2})?/\d{4}\s+(?:a|at[eé]|-)\s+\d{2}(?:/\d{2})?/\d{4}", texto_clean, re.IGNORECASE):
-        return texto_clean
+    m = re.search(r"\d{2}(?:/\d{2})?/\d{4}\s+(?:a|at[eé]|-)\s+\d{2}(?:/\d{2})?/\d{4}", texto_clean, re.IGNORECASE)
+    if m:
+        return m.group(0).strip()
 
     padrao_data = r"\b(\d{2}/\d{2}/\d{4}|\d{2}/\d{4})\b"
     encontradas = re.findall(padrao_data, texto_clean)
@@ -188,7 +192,7 @@ ROTULOS_MAP = [
     ("valor_original", [
         r"valor\s+total\s+da\s+d[ií]vida", r"valor\s+da\s+causa", r"valor\s+da\s+d[ií]vida",
         r"valor\s+original", r"valor\s+do\s+d[eé]bito", r"valor\s+devido",
-        r"d[eé]bito\s+no\s+valor\s+de", r"a\s+d[ií]vida\s+[eé]\s+de"
+        r"d[eé]bito\s+no\s+valor\s+de", r"a\s+d[ií]vida\s+[eé]\s+de", r"valor\s+atualizado\s+da\s+causa"
     ]),
     ("valor_acordo", [
         r"valor\s+total\s+negociado", r"valor\s+total\s+acordado", r"valor\s+total\s+do\s+acordo",
@@ -206,10 +210,11 @@ ROTULOS_MAP = [
         r"vencimento\s+da\s+entrada", r"primeiro\s+vencimento", r"a\s+entrada\s+vence", r"entrada\s+vence"
     ]),
     ("entrada", [
-        r"entrada\s+de", r"entrada", r"sinal\s+de", r"sinal"
+        r"entrada\s+de", r"entrada(?!.*\))", r"sinal\s+de", r"sinal"
     ]),
     ("valor_parcela", [
-        r"valor\s+da\s+parcela", r"valor\s+de\s+cada\s+parcela", r"valor\s+por\s+parcela", r"valor\s+da\s+presta[cç][aã]o"
+        r"valor\s+da\s+parcela", r"valor\s+de\s+cada\s+parcela", r"valor\s+por\s+parcela", r"valor\s+da\s+presta[cç][aã]o",
+        r"\d{1,2}[aãºoª]?\s+parcela(?:\s*\([^)]+\))?"
     ]),
     ("quantidade_parcelas", [
         r"quantidade\s+de\s+parcelas", r"qtd\.?\s+de\s+parcelas", r"n[uú]mero\s+de\s+parcelas", r"qtd\s+parcelas", r"parcelas"
@@ -305,7 +310,7 @@ def extrair_processo(texto: str) -> str:
 
 
 def extrair_telefones(texto: str, cpf_cliente: str = "") -> str:
-    padrao_tel = r"\(?\d{2}\)?\s*9?\d{4}[-\s]?\d{4}"
+    padrao_tel = r"\(?\d{2}\)?\s*9?\d{4,5}[-\s]?\d{3,4}"
     matches = re.findall(padrao_tel, texto)
 
     cpf_digs = re.sub(r"\D", "", cpf_cliente)
@@ -341,9 +346,9 @@ def extrair_emails(texto: str) -> str:
 
 
 def extrair_cep(texto: str) -> str:
-    match = re.search(r"\b(\d{5})[-]?(\d{3})\b", texto)
+    match = re.search(r"\b(\d{2}\.?\d{3})[-]?(\d{3})\b", texto)
     if match:
-        return f"{match.group(1)}-{match.group(2)}"
+        return f"{match.group(1).replace('.', '')}-{match.group(2)}"
     return ""
 
 
@@ -373,10 +378,10 @@ def limpar_nome(nome_raw: str) -> str:
 
 
 def extrair_parcelamento(texto: str) -> Tuple[str, str]:
-    match = re.search(r"\b(\d{1,3})\s*(?:x|vezes|parcelas?)\s*(?:de|no\s+valor\s+de)?\s*R?\$?\s*([\d\.,]+)", texto, re.IGNORECASE)
+    match = re.search(r"\b(\d{1,3})\s*(?:x|vezes|parcelas?)(?:\s*(?:de|no\s+valor\s+de)?\s*R?\$?\s*([\d\.,]*\d[\d\.,]*))?", texto, re.IGNORECASE)
     if match:
         qp = match.group(1).strip()
-        vp_raw = match.group(2).strip()
+        vp_raw = match.group(2).strip() if match.group(2) else ""
         dec_vp = parse_valor_brl(vp_raw)
         return qp, formatar_valor_brl(dec_vp) if dec_vp else vp_raw
     return "", ""
@@ -502,7 +507,7 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     if "entrada" in rotulos_dict and rotulos_dict["entrada"]:
         dec_entrada = parse_valor_brl(rotulos_dict["entrada"])
     if dec_entrada is None:
-        m_ent = re.search(r"(?i)\b(?:entrada\s*(?:de|:)?|sinal\s*(?:de|:)?)\s*R?\$?\s*([\d\.,]+)", texto)
+        m_ent = re.search(r"(?i)\b(?:entrada\)?\s*(?:de|:)?|sinal\s*(?:de|:)?)\s*R?\$?\s*([\d\.,]+)", texto)
         if m_ent:
             dec_entrada = parse_valor_brl(m_ent.group(1))
 

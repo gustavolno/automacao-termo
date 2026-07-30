@@ -139,3 +139,23 @@ Processo nº: 0700009-10.2026.8.07.0009 Beneficiário: CAMILA RODRIGUES MORAES C
     assert dados["valor_parcela"] == "384,17"
     assert dados["valor_acordo"] == "10.244,54"
     assert dados["competencias"] == "10/03/2023 a 11/09/2023"
+
+def test_screenshot_3_dados_acordo():
+    """
+    Teste com a mensagem do Screenshot 3 (texto corrido DADOS DO ACORDO).
+    """
+    mensagem = "DADOS DO ACORDO Processo: 6053087-91.2026.8.03.0001 Beneficiária: Mary Gonçalves Pimentel CPF: 123.253.092-15 Telefone: (96) 91732-598 E-mail: pimentel.marygoncalves36@gmail.com Endereço: Av. Severino G. de Almeida, até 2549/2550, nº 2199 Jardim Felicidade Macapá/AP - CEP: 68.909-012 Valor atualizado da causa: R$ 6.170,70 Competências negociadas: 10/12/2020 a 10/03/2021 Com a finalidade de promover a composição amigável e o encerramento do processo, foi concedido um desconto de 20%, resultando no valor negociado de R$ 4.936,56, com pagamento parcelado em 02 vezes. Condições de pagamento: 1ª parcela (entrada): R$ 2.468,28, com vencimento em 03/08/2026; 2ª parcela: R$ 2.468,28, com vencimento em 10/09/2026."
+
+    dados = interpretar_mensagem(mensagem)
+
+    assert dados["nome"] == "Mary Gonçalves Pimentel"
+    assert dados["processo"] == "6053087-91.2026.8.03.0001"
+    assert "(96) 91732-598" in dados["telefone"]
+    assert dados["cep"] == "68909-012"
+    assert dados["valor_original"] == "6.170,70"
+    assert dados["competencias"] == "10/12/2020 a 10/03/2021"
+    assert dados["valor_acordo"] == "4.936,56"
+    assert dados["quantidade_parcelas"] == "02"
+    assert dados["valor_parcela"] == "2.468,28"
+    assert dados["valor_entrada"] == "2.468,28"
+    assert dados["vencimento_entrada"] == "03/08/2026"
