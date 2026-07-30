@@ -159,3 +159,5 @@ def test_screenshot_3_dados_acordo():
     assert dados["valor_parcela"] == "2.468,28"
     assert dados["valor_entrada"] == "2.468,28"
     assert dados["vencimento_entrada"] == "03/08/2026"
+    assert dados["inicio_parcelas"] == "10/09/2026"
+    assert dados["dia_parcela"] == "10"

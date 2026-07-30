@@ -404,10 +404,14 @@ def extrair_vencimento_entrada(texto: str) -> str:
     return ""
 
 
-def extrair_inicio_parcelas(texto: str) -> str:
-    match = re.search(r"(?i)(?:iniciando\s+em|primeira\s+parcela\s+em|com\s+vencimento\s+em)\s*(\d{2}[/\.-]\d{2}[/\.-]\d{4})", texto)
-    if match:
-        return match.group(1).replace(".", "/").replace("-", "/")
+def extrair_inicio_parcelas(texto: str, vencimento_entrada: str = "") -> str:
+    matches = re.findall(r"(?i)(?:iniciando\s+em|primeira\s+parcela\s+em|com\s+vencimento\s+em|vencimento\s+para\s+o\s+dia)\s*(\d{2}[/\.-]\d{2}[/\.-]\d{4})", texto)
+    for m in matches:
+        dt = m.replace(".", "/").replace("-", "/")
+        if dt != vencimento_entrada:
+            return dt
+    if matches:
+        return matches[0].replace(".", "/").replace("-", "/")
     return ""
 
 
@@ -573,9 +577,12 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
         dados.dia_parcela = extrair_dia_parcela(texto)
 
     if "inicio_parcelas" in rotulos_dict and rotulos_dict["inicio_parcelas"]:
-        dados.inicio_parcelas = extrair_inicio_parcelas(rotulos_dict["inicio_parcelas"])
+        dados.inicio_parcelas = extrair_inicio_parcelas(rotulos_dict["inicio_parcelas"], dados.vencimento_entrada)
     if not dados.inicio_parcelas:
-        dados.inicio_parcelas = extrair_inicio_parcelas(texto)
+        dados.inicio_parcelas = extrair_inicio_parcelas(texto, dados.vencimento_entrada)
+        
+    if dados.inicio_parcelas and not dados.dia_parcela:
+        dados.dia_parcela = str(int(dados.inicio_parcelas.split("/")[0]))
 
     # COMPETÊNCIAS
     if "competencias" in rotulos_dict and rotulos_dict["competencias"]:

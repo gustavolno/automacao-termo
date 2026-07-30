@@ -129,12 +129,12 @@ def formatar_e_calcular(campos: dict) -> dict:
     }
 
 
-def gerar_documento(campos_revisados: dict):
+def gerar_documento(campos_revisados: dict, modelo_path: str = MODELO_PATH):
     dados = formatar_e_calcular(campos_revisados)
     os.makedirs(PASTA_SAIDA, exist_ok=True)
     nome_clean = re.sub(r'[\\/*?:"<>|]', "", dados["nome_cliente"])[:50]
     caminho = os.path.join(PASTA_SAIDA, f"Termo_{nome_clean}.docx")
-    doc = DocxTemplate(MODELO_PATH)
+    doc = DocxTemplate(modelo_path)
     doc.render(dados)
     doc.save(caminho)
     return caminho, dados
@@ -305,30 +305,43 @@ class App(tk.Tk):
 
         btn_frame = tk.Frame(self, bg=COR_FUNDO, padx=16, pady=8)
         btn_frame.pack(fill="x")
-        btn_frame.columnconfigure(0, weight=3)
+        btn_frame.columnconfigure(0, weight=1)
         btn_frame.columnconfigure(1, weight=1)
+        btn_frame.columnconfigure(2, weight=1)
 
-        self.btn_gerar = tk.Button(
-            btn_frame, text="⚡  GERAR TERMO DE ACORDO",
-            font=("Segoe UI", 11, "bold"),
+        self.btn_gerar_parcelado = tk.Button(
+            btn_frame, text="GERAR (PARCELADO)",
+            font=("Segoe UI", 10, "bold"),
             bg=COR_OURO, fg="#1C1C1E",
             activebackground=COR_OURO_ESC, activeforeground="#1C1C1E",
-            relief="flat", cursor="hand2", padx=20, pady=8,
-            command=self._gerar
+            relief="flat", cursor="hand2", padx=10, pady=8,
+            command=lambda: self._gerar(tipo="parcelado")
         )
-        self.btn_gerar.grid(row=0, column=0, sticky="ew", padx=(0, 8))
-        self.btn_gerar.bind("<Enter>", lambda e: self.btn_gerar.config(bg=COR_OURO_ESC))
-        self.btn_gerar.bind("<Leave>", lambda e: self.btn_gerar.config(bg=COR_OURO))
+        self.btn_gerar_parcelado.grid(row=0, column=0, sticky="ew", padx=(0, 4))
+        self.btn_gerar_parcelado.bind("<Enter>", lambda e: self.btn_gerar_parcelado.config(bg=COR_OURO_ESC))
+        self.btn_gerar_parcelado.bind("<Leave>", lambda e: self.btn_gerar_parcelado.config(bg=COR_OURO))
+        
+        self.btn_gerar_avista = tk.Button(
+            btn_frame, text="GERAR (À VISTA)",
+            font=("Segoe UI", 10, "bold"),
+            bg=COR_OURO, fg="#1C1C1E",
+            activebackground=COR_OURO_ESC, activeforeground="#1C1C1E",
+            relief="flat", cursor="hand2", padx=10, pady=8,
+            command=lambda: self._gerar(tipo="avista")
+        )
+        self.btn_gerar_avista.grid(row=0, column=1, sticky="ew", padx=(4, 4))
+        self.btn_gerar_avista.bind("<Enter>", lambda e: self.btn_gerar_avista.config(bg=COR_OURO_ESC))
+        self.btn_gerar_avista.bind("<Leave>", lambda e: self.btn_gerar_avista.config(bg=COR_OURO))
 
         self.btn_reset = tk.Button(
-            btn_frame, text="🧹  RESETAR CAMPOS",
+            btn_frame, text="RESETAR CAMPOS",
             font=("Segoe UI", 10, "bold"),
             bg=COR_BORDA, fg=COR_TEXTO,
             activebackground="#4A4A4C", activeforeground=COR_TEXTO,
-            relief="flat", cursor="hand2", padx=14, pady=8,
+            relief="flat", cursor="hand2", padx=10, pady=8,
             command=self._reset_campos
         )
-        self.btn_reset.grid(row=0, column=1, sticky="ew")
+        self.btn_reset.grid(row=0, column=2, sticky="ew", padx=(4, 0))
 
     def _limpar_ph(self, _e):
         if self.txt.get("1.0", "end-1c") == PLACEHOLDER:
@@ -376,9 +389,10 @@ class App(tk.Tk):
         else:
             self._set_status("✅ Todos os campos foram interpretados com sucesso!", COR_VERDE)
 
-    def _gerar(self):
-        if not os.path.exists(MODELO_PATH):
-            messagebox.showerror("Erro", f"Arquivo modelo não encontrado: {MODELO_PATH}")
+    def _gerar(self, tipo="parcelado"):
+        modelo_usado = "MODELO DE TERMO DE ACORDO-A VISTA.docx" if tipo == "avista" else MODELO_PATH
+        if not os.path.exists(modelo_usado):
+            messagebox.showerror("Erro", f"Arquivo modelo não encontrado: {modelo_usado}")
             return
 
         campos = {ch: entry.get().strip() for ch, entry in self.entries.items()}
@@ -387,13 +401,14 @@ class App(tk.Tk):
             messagebox.showwarning("Atenção", "O campo 'Nome / Cliente' é obrigatório.")
             return
 
-        self._set_status("⏳ Gerando documento...", COR_OURO)
-        self.btn_gerar.config(state="disabled")
+        self._set_status(f"📄 Gerando documento ({tipo})...", COR_OURO)
+        self.btn_gerar_parcelado.config(state="disabled")
+        self.btn_gerar_avista.config(state="disabled")
         self.update()
 
         try:
-            caminho, dados = gerar_documento(campos)
-            self._set_status(f"✅ Documento gerado com sucesso: {caminho}", COR_VERDE)
+            caminho, dados = gerar_documento(campos, modelo_usado)
+            self._set_status(f"✓ Documento gerado com sucesso: {caminho}", COR_VERDE)
             resp = messagebox.askyesno(
                 "Sucesso!",
                 f"Termo de acordo gerado com sucesso!\n\n"
@@ -411,7 +426,8 @@ class App(tk.Tk):
             self._set_status(f"❌ Erro ao gerar: {e}", COR_VERMELHO)
             messagebox.showerror("Erro ao gerar termo", str(e))
         finally:
-            self.btn_gerar.config(state="normal")
+            self.btn_gerar_parcelado.config(state="normal")
+            self.btn_gerar_avista.config(state="normal")
 
     def _set_status(self, msg, cor=COR_CINZA):
         self.status_var.set(msg)
