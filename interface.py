@@ -119,59 +119,61 @@ def gerar_documento(campos_revisados: dict, modelo_path: str = MODELO_PATH):
 
 
 # ============================================================
-# PALETA MINIMALISTA
+# PALETA DE CORES (INSPIRADA NO PORTEFÓLIO STEADY-BELEKOY)
 # ============================================================
-BG = "#FAFAFA"
-BG_SURFACE = "#FFFFFF"
-BG_INPUT = "#F3F3F5"
-BG_INPUT_FOCUS = "#EEEEF2"
-BORDER_LIGHT = "#E4E4E7"
-BORDER = "#D4D4D8"
-ACCENT = "#18181B"
-ACCENT_SOFT = "#3F3F46"
-ACCENT_HOVER = "#27272A"
-TEXT = "#18181B"
-TEXT_SEC = "#71717A"
-TEXT_MUTED = "#A1A1AA"
-TEXT_PLACEHOLDER = "#C4C4CC"
-GREEN = "#16A34A"
-GREEN_BG = "#F0FDF4"
-RED = "#DC2626"
-RED_BG = "#FEF2F2"
-AMBER = "#D97706"
-AMBER_BG = "#FFFBEB"
-BLUE = "#2563EB"
+BG_MAIN = "#0a0d12"        # Dark charcoal navy background
+BG_NAV = "#0f1318"         # Slightly lighter header bar
+BG_CARD = "#131920"        # Sleek dark card
+BG_INPUT = "#0a0d12"       # Code terminal input
+BORDER_COLOR = "#1e2a38"   # Subtle navy border
+
+ACCENT_EMERALD = "#00e5a0" # Neon Emerald / Mint
+ACCENT_BLUE = "#0094ff"    # Electric Cyan/Blue
+ACCENT_GOLD = "#f0b429"    # Warm Yellow/Gold
+
+TEXT_BRIGHT = "#e8f0fe"    # Cool bright text
+TEXT_MUTED = "#6b7f96"     # Muted slate text
+TEXT_DIM = "#41536b"       # Placeholder text
+COLOR_RED = "#ff5f56"      # Mac terminal red
+COLOR_YELLOW = "#ffbd2e"   # Mac terminal yellow
+COLOR_GREEN = "#27c93f"    # Mac terminal green
+
+FONT_MONO = ("Consolas", 10)
+FONT_MONO_BOLD = ("Consolas", 10, "bold")
+FONT_TITLE = ("Consolas", 12, "bold")
+FONT_SANS = ("Segoe UI", 9)
+FONT_SANS_BOLD = ("Segoe UI", 9, "bold")
 
 CAMPOS_REVISAO = [
-    ("Nome", "nome"),
-    ("CPF", "cpf"),
-    ("Processo", "processo"),
-    ("Matrícula", "matricula"),
-    ("Telefone", "telefone"),
-    ("E-mail", "email"),
-    ("Endereço", "endereco"),
-    ("CEP", "cep"),
-    ("Valor Original", "valor_original"),
-    ("Valor do Acordo", "valor_acordo"),
-    ("Valor Entrada", "valor_entrada"),
-    ("Venc. Entrada", "vencimento_entrada"),
-    ("Qtd. Parcelas", "quantidade_parcelas"),
-    ("Valor Parcela", "valor_parcela"),
-    ("Início Parcelas", "inicio_parcelas"),
-    ("Dia Vencimento", "dia_parcela"),
-    ("Competências", "competencias"),
+    ("nome", "Nome / Cliente"),
+    ("cpf", "CPF"),
+    ("processo", "Processo Judicial"),
+    ("matricula", "Matrícula"),
+    ("telefone", "Telefone / WhatsApp"),
+    ("email", "E-mail"),
+    ("endereco", "Endereço"),
+    ("cep", "CEP"),
+    ("valor_original", "Valor Original"),
+    ("valor_acordo", "Valor do Acordo"),
+    ("valor_entrada", "Valor Entrada"),
+    ("vencimento_entrada", "Venc. Entrada"),
+    ("quantidade_parcelas", "Qtd. Parcelas"),
+    ("valor_parcela", "Valor Parcela"),
+    ("inicio_parcelas", "Início Parcelas"),
+    ("dia_parcela", "Dia Vencimento"),
+    ("competencias", "Competências"),
 ]
 
-PLACEHOLDER = "Cole a mensagem aqui..."
+PLACEHOLDER = "// Cole a mensagem recebida exatamente como chegou..."
 
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("Termos de Acordo — AC Advocacia")
-        self.configure(bg=BG)
+        self.title("gustavo@dev:~ // gerador-termo")
+        self.configure(bg=BG_MAIN)
         self.resizable(True, True)
-        self.minsize(900, 640)
+        self.minsize(980, 680)
         self.entries = {}
         self.calc_entries = {}
         self._build_ui()
@@ -179,56 +181,49 @@ class App(tk.Tk):
 
     def _centralizar(self):
         self.update_idletasks()
-        w, h = 1020, 720
+        w, h = 1040, 740
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
     def _build_ui(self):
-        # ── Barra superior ──
-        topbar = tk.Frame(self, bg=BG_SURFACE, height=48)
-        topbar.pack(fill="x")
-        topbar.pack_propagate(False)
+        # ── NAV BAR ──
+        navbar = tk.Frame(self, bg=BG_NAV, height=52, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        navbar.pack(fill="x")
+        navbar.pack_propagate(False)
 
-        tk.Label(topbar, text="Termos de Acordo",
-                 font=("Segoe UI Semibold", 13), bg=BG_SURFACE, fg=TEXT
-                 ).pack(side="left", padx=20, pady=10)
+        # Brand logo
+        brand_frame = tk.Frame(navbar, bg=BG_NAV)
+        brand_frame.pack(side="left", padx=20)
+        
+        tk.Label(brand_frame, text="~/", font=("Consolas", 11, "bold"), bg=BG_NAV, fg=ACCENT_EMERALD).pack(side="left")
+        tk.Label(brand_frame, text="gustavo-lino", font=("Consolas", 11, "bold"), bg=BG_NAV, fg=TEXT_BRIGHT).pack(side="left")
+        tk.Label(brand_frame, text=" / termo-acordo.v2", font=("Consolas", 9), bg=BG_NAV, fg=TEXT_MUTED).pack(side="left")
 
-        tk.Label(topbar, text="AC Advocacia",
-                 font=("Segoe UI", 9), bg=BG_SURFACE, fg=TEXT_MUTED
-                 ).pack(side="left", pady=10)
-
-        # Linha fina
-        tk.Frame(self, bg=BORDER_LIGHT, height=1).pack(fill="x")
-
-        # ── Tabs ──
-        tab_bar = tk.Frame(self, bg=BG_SURFACE, height=40)
-        tab_bar.pack(fill="x")
-        tab_bar.pack_propagate(False)
-
+        # Tabs on top right
         self._tab_frames = {}
         self._tab_buttons = {}
         self._active_tab = None
 
+        tabs_frame = tk.Frame(navbar, bg=BG_NAV)
+        tabs_frame.pack(side="right", padx=16)
+
         tabs = [
-            ("Gerador", "gerador"),
-            ("Calculadora", "calculadora"),
+            ("gerador", "[ 01. GERADOR ]"),
+            ("calculadora", "[ 02. CALCULADORA ]"),
         ]
 
-        for label, key in tabs:
-            btn = tk.Label(tab_bar, text=label,
-                           font=("Segoe UI", 10), bg=BG_SURFACE, fg=TEXT_MUTED,
-                           cursor="hand2", padx=16, pady=8)
+        for key, label in tabs:
+            btn = tk.Label(tabs_frame, text=label, font=("Consolas", 9, "bold"),
+                           bg=BG_NAV, fg=TEXT_MUTED, cursor="hand2", padx=12, pady=14)
             btn.pack(side="left")
             btn.bind("<Button-1>", lambda e, k=key: self._switch_tab(k))
-            btn.bind("<Enter>", lambda e, b=btn: b.config(fg=TEXT) if b != self._tab_buttons.get(self._active_tab) else None)
-            btn.bind("<Leave>", lambda e, b=btn: b.config(fg=TEXT_MUTED) if b != self._tab_buttons.get(self._active_tab) else None)
+            btn.bind("<Enter>", lambda e, b=btn, k=key: b.config(fg=ACCENT_EMERALD) if k != self._active_tab else None)
+            btn.bind("<Leave>", lambda e, b=btn, k=key: b.config(fg=TEXT_MUTED) if k != self._active_tab else None)
             self._tab_buttons[key] = btn
 
-        tk.Frame(self, bg=BORDER_LIGHT, height=1).pack(fill="x")
-
-        # Container de conteúdo
-        self._content = tk.Frame(self, bg=BG)
-        self._content.pack(fill="both", expand=True)
+        # Container principal
+        self._content = tk.Frame(self, bg=BG_MAIN)
+        self._content.pack(fill="both", expand=True, padx=16, pady=14)
 
         self._build_tab_gerador()
         self._build_tab_calculadora()
@@ -238,234 +233,253 @@ class App(tk.Tk):
         if self._active_tab == key:
             return
         self._active_tab = key
-        # Esconde todos
         for k, f in self._tab_frames.items():
             f.pack_forget()
-        # Mostra o selecionado
         self._tab_frames[key].pack(in_=self._content, fill="both", expand=True)
-        # Estiliza tabs
+
         for k, btn in self._tab_buttons.items():
             if k == key:
-                btn.config(fg=TEXT, font=("Segoe UI Semibold", 10))
+                btn.config(fg=ACCENT_EMERALD)
             else:
-                btn.config(fg=TEXT_MUTED, font=("Segoe UI", 10))
+                btn.config(fg=TEXT_MUTED)
 
     # ============================================================
-    # ABA GERADOR
+    # ABA 1 - GERADOR
     # ============================================================
     def _build_tab_gerador(self):
-        tab = tk.Frame(self._content, bg=BG)
+        tab = tk.Frame(self._content, bg=BG_MAIN)
         self._tab_frames["gerador"] = tab
 
-        main = tk.Frame(tab, bg=BG)
-        main.pack(fill="both", expand=True, padx=24, pady=16)
-        main.columnconfigure(0, weight=2)
-        main.columnconfigure(1, weight=3)
-        main.rowconfigure(0, weight=1)
+        grid = tk.Frame(tab, bg=BG_MAIN)
+        grid.pack(fill="both", expand=True)
+        grid.columnconfigure(0, weight=1)
+        grid.columnconfigure(1, weight=1)
+        grid.rowconfigure(0, weight=1)
 
-        # ── Esquerda: Entrada ──
-        esq = tk.Frame(main, bg=BG)
-        esq.grid(row=0, column=0, sticky="nsew", padx=(0, 12))
-        esq.rowconfigure(1, weight=1)
-        esq.columnconfigure(0, weight=1)
+        # ── Terminal Card Esquerda (Entrada) ──
+        term_card = tk.Frame(grid, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        term_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        term_card.rowconfigure(1, weight=1)
+        term_card.columnconfigure(0, weight=1)
 
-        tk.Label(esq, text="Mensagem", font=("Segoe UI Semibold", 10),
-                 bg=BG, fg=TEXT).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        # Terminal Header Bar (Mac dots)
+        t_bar = tk.Frame(term_card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        t_bar.grid(row=0, column=0, sticky="ew")
+        t_bar.pack_propagate(False)
 
+        dots_f = tk.Frame(t_bar, bg=BG_NAV)
+        dots_f.pack(side="left", padx=12)
+        tk.Canvas(dots_f, width=10, height=10, bg=BG_NAV, highlightthickness=0).pack(side="left", padx=2)
+        dots_f.winfo_children()[-1].create_oval(0, 0, 9, 9, fill=COLOR_RED, outline="")
+        tk.Canvas(dots_f, width=10, height=10, bg=BG_NAV, highlightthickness=0).pack(side="left", padx=2)
+        dots_f.winfo_children()[-1].create_oval(0, 0, 9, 9, fill=COLOR_YELLOW, outline="")
+        tk.Canvas(dots_f, width=10, height=10, bg=BG_NAV, highlightthickness=0).pack(side="left", padx=2)
+        dots_f.winfo_children()[-1].create_oval(0, 0, 9, 9, fill=COLOR_GREEN, outline="")
+
+        tk.Label(t_bar, text="mensagem_bruta.txt", font=FONT_MONO, bg=BG_NAV, fg=TEXT_MUTED).pack(side="left", padx=8)
+
+        # Scrolled Text Box
         self.txt = scrolledtext.ScrolledText(
-            esq, wrap=tk.WORD, font=("Consolas", 9),
-            bg=BG_SURFACE, fg=TEXT_PLACEHOLDER,
-            insertbackground=ACCENT, relief="flat",
-            padx=12, pady=10, bd=0,
-            highlightthickness=1, highlightbackground=BORDER_LIGHT,
-            highlightcolor=BORDER
+            term_card, wrap=tk.WORD, font=FONT_MONO,
+            bg=BG_INPUT, fg=TEXT_DIM,
+            insertbackground=ACCENT_EMERALD, relief="flat",
+            padx=14, pady=12, bd=0,
+            selectbackground=BORDER_COLOR, selectforeground=TEXT_BRIGHT
         )
-        self.txt.grid(row=1, column=0, sticky="nsew")
+        self.txt.grid(row=1, column=0, sticky="nsew", padx=1, pady=1)
         self.txt.insert("1.0", PLACEHOLDER)
         self.txt.bind("<FocusIn>", self._limpar_ph)
         self.txt.bind("<FocusOut>", self._restaurar_ph)
 
+        # Botão Interpretar
         btn_interp = tk.Button(
-            esq, text="Interpretar",
-            font=("Segoe UI Semibold", 10),
-            bg=ACCENT, fg="#FFFFFF",
-            activebackground=ACCENT_HOVER, activeforeground="#FFFFFF",
-            relief="flat", cursor="hand2", pady=8, bd=0,
+            term_card, text="❯ INTERPRETAR MENSAGEM",
+            font=FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_EMERALD,
+            activebackground=BORDER_COLOR, activeforeground=ACCENT_EMERALD,
+            relief="flat", cursor="hand2", pady=10, bd=0,
             command=self._interpretar
         )
-        btn_interp.grid(row=2, column=0, sticky="ew", pady=(10, 0))
-        btn_interp.bind("<Enter>", lambda e: btn_interp.config(bg=ACCENT_HOVER))
-        btn_interp.bind("<Leave>", lambda e: btn_interp.config(bg=ACCENT))
+        btn_interp.grid(row=2, column=0, sticky="ew")
+        btn_interp.bind("<Enter>", lambda e: btn_interp.config(bg=BORDER_COLOR))
+        btn_interp.bind("<Leave>", lambda e: btn_interp.config(bg=BG_NAV))
 
-        # ── Direita: Campos ──
-        dir_ = tk.Frame(main, bg=BG)
-        dir_.grid(row=0, column=1, sticky="nsew", padx=(12, 0))
-        dir_.columnconfigure(0, weight=1)
-        dir_.rowconfigure(1, weight=1)
+        # ── Card Direita (Campos Extraídos) ──
+        fields_card = tk.Frame(grid, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        fields_card.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        fields_card.rowconfigure(1, weight=1)
+        fields_card.columnconfigure(0, weight=1)
 
-        tk.Label(dir_, text="Campos extraídos", font=("Segoe UI Semibold", 10),
-                 bg=BG, fg=TEXT).grid(row=0, column=0, sticky="w", pady=(0, 6))
+        f_bar = tk.Frame(fields_card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        f_bar.grid(row=0, column=0, sticky="ew")
+        f_bar.pack_propagate(False)
+        tk.Label(f_bar, text="campos_extraidos.json", font=FONT_MONO, bg=BG_NAV, fg=ACCENT_BLUE).pack(side="left", padx=14)
 
-        canvas = tk.Canvas(dir_, bg=BG, highlightthickness=0, bd=0)
-        scrollbar = tk.Scrollbar(dir_, orient="vertical", command=canvas.yview)
-        scroll_frame = tk.Frame(canvas, bg=BG)
+        canvas = tk.Canvas(fields_card, bg=BG_CARD, highlightthickness=0, bd=0)
+        scrollbar = tk.Scrollbar(fields_card, orient="vertical", command=canvas.yview,
+                                 bg=BG_CARD, troughcolor=BG_MAIN, activebackground=ACCENT_EMERALD)
+        scroll_frame = tk.Frame(canvas, bg=BG_CARD)
         scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
         canvas_window = canvas.create_window((0, 0), window=scroll_frame, anchor="nw")
         canvas.configure(yscrollcommand=scrollbar.set)
 
-        # Ajustar largura do scroll_frame ao canvas
         def _on_canvas_configure(event):
             canvas.itemconfig(canvas_window, width=event.width)
         canvas.bind("<Configure>", _on_canvas_configure)
 
-        canvas.grid(row=1, column=0, sticky="nsew")
+        canvas.grid(row=1, column=0, sticky="nsew", padx=10, pady=10)
         scrollbar.grid(row=1, column=1, sticky="ns")
 
         scroll_frame.columnconfigure(1, weight=1)
 
-        for i, (label, chave) in enumerate(CAMPOS_REVISAO):
-            tk.Label(scroll_frame, text=label, font=("Segoe UI", 8),
-                     bg=BG, fg=TEXT_SEC, anchor="e").grid(
-                row=i, column=0, sticky="e", padx=(0, 10), pady=3
-            )
+        for i, (chave, label) in enumerate(CAMPOS_REVISAO):
+            lbl = tk.Label(scroll_frame, text=label, font=FONT_MONO,
+                           bg=BG_CARD, fg=TEXT_MUTED, anchor="e")
+            lbl.grid(row=i, column=0, sticky="e", padx=(0, 10), pady=4)
 
-            ent = tk.Entry(scroll_frame, font=("Segoe UI", 10),
-                           bg=BG_INPUT, fg=TEXT,
-                           insertbackground=ACCENT,
+            ent = tk.Entry(scroll_frame, font=FONT_MONO,
+                           bg=BG_INPUT, fg=TEXT_BRIGHT,
+                           insertbackground=ACCENT_EMERALD,
                            relief="flat", bd=0,
                            highlightthickness=1,
-                           highlightbackground=BORDER_LIGHT,
-                           highlightcolor=BORDER)
-            ent.grid(row=i, column=1, sticky="ew", pady=3, ipady=5)
+                           highlightbackground=BORDER_COLOR,
+                           highlightcolor=ACCENT_EMERALD)
+            ent.grid(row=i, column=1, sticky="ew", pady=4, ipady=4)
             self.entries[chave] = ent
 
-        # ── Rodapé ──
-        footer = tk.Frame(tab, bg=BG, padx=24, pady=12)
+        # ── Action Buttons Footer ──
+        footer = tk.Frame(tab, bg=BG_MAIN, pady=10)
         footer.pack(fill="x")
 
-        self.status_var = tk.StringVar(value="")
+        self.status_var = tk.StringVar(value="// Sistema pronto. Aguardando entrada.")
         self.status_lbl = tk.Label(footer, textvariable=self.status_var,
-                 font=("Segoe UI", 8), bg=BG, fg=TEXT_MUTED, anchor="w")
+                                   font=FONT_MONO, bg=BG_MAIN, fg=TEXT_MUTED, anchor="w")
         self.status_lbl.pack(fill="x", pady=(0, 8))
 
-        btn_row = tk.Frame(footer, bg=BG)
+        btn_row = tk.Frame(footer, bg=BG_MAIN)
         btn_row.pack(fill="x")
 
-        self.btn_gerar_parcelado = self._make_btn(
-            btn_row, "Gerar Parcelado", ACCENT, "#FFF",
-            lambda: self._gerar("parcelado"))
-        self.btn_gerar_parcelado.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        self.btn_gerar_parcelado = tk.Button(
+            btn_row, text="[ GERAR PARCELADO ]",
+            font=FONT_MONO_BOLD, bg=ACCENT_EMERALD, fg=BG_MAIN,
+            activebackground="#00ffb3", activeforeground=BG_MAIN,
+            relief="flat", cursor="hand2", pady=10, bd=0,
+            command=lambda: self._gerar("parcelado")
+        )
+        self.btn_gerar_parcelado.pack(side="left", fill="x", expand=True, padx=(0, 6))
+        self.btn_gerar_parcelado.bind("<Enter>", lambda e: self.btn_gerar_parcelado.config(bg="#00ffb3"))
+        self.btn_gerar_parcelado.bind("<Leave>", lambda e: self.btn_gerar_parcelado.config(bg=ACCENT_EMERALD))
 
-        self.btn_gerar_avista = self._make_btn(
-            btn_row, "Gerar À Vista", ACCENT, "#FFF",
-            lambda: self._gerar("avista"))
-        self.btn_gerar_avista.pack(side="left", fill="x", expand=True, padx=(4, 4))
+        self.btn_gerar_avista = tk.Button(
+            btn_row, text="[ GERAR À VISTA ]",
+            font=FONT_MONO_BOLD, bg=ACCENT_BLUE, fg=BG_MAIN,
+            activebackground="#33aaff", activeforeground=BG_MAIN,
+            relief="flat", cursor="hand2", pady=10, bd=0,
+            command=lambda: self._gerar("avista")
+        )
+        self.btn_gerar_avista.pack(side="left", fill="x", expand=True, padx=(6, 6))
+        self.btn_gerar_avista.bind("<Enter>", lambda e: self.btn_gerar_avista.config(bg="#33aaff"))
+        self.btn_gerar_avista.bind("<Leave>", lambda e: self.btn_gerar_avista.config(bg=ACCENT_BLUE))
 
-        self.btn_reset = self._make_btn(
-            btn_row, "Limpar", BG_INPUT, TEXT_SEC,
-            self._reset_campos, hover_bg=BORDER_LIGHT)
-        self.btn_reset.pack(side="left", fill="x", expand=True, padx=(4, 0))
-
-    def _make_btn(self, parent, text, bg, fg, cmd, hover_bg=None):
-        btn = tk.Button(parent, text=text, font=("Segoe UI Semibold", 9),
-                        bg=bg, fg=fg, activebackground=hover_bg or ACCENT_HOVER,
-                        activeforeground=fg, relief="flat", cursor="hand2",
-                        pady=8, bd=0, command=cmd)
-        hbg = hover_bg or ACCENT_HOVER
-        btn.bind("<Enter>", lambda e: btn.config(bg=hbg))
-        btn.bind("<Leave>", lambda e: btn.config(bg=bg))
-        return btn
+        self.btn_reset = tk.Button(
+            btn_row, text="[ RESETAR ]",
+            font=FONT_MONO_BOLD, bg=BG_CARD, fg=TEXT_MUTED,
+            activebackground=BORDER_COLOR, activeforeground=TEXT_BRIGHT,
+            relief="flat", cursor="hand2", pady=10, bd=0,
+            command=self._reset_campos
+        )
+        self.btn_reset.pack(side="left", fill="x", expand=True, padx=(6, 0))
+        self.btn_reset.bind("<Enter>", lambda e: self.btn_reset.config(bg=BORDER_COLOR, fg=TEXT_BRIGHT))
+        self.btn_reset.bind("<Leave>", lambda e: self.btn_reset.config(bg=BG_CARD, fg=TEXT_MUTED))
 
     # ============================================================
-    # ABA CALCULADORA
+    # ABA 2 - CALCULADORA
     # ============================================================
     def _build_tab_calculadora(self):
-        tab = tk.Frame(self._content, bg=BG)
+        tab = tk.Frame(self._content, bg=BG_MAIN)
         self._tab_frames["calculadora"] = tab
 
-        wrapper = tk.Frame(tab, bg=BG, padx=40, pady=24)
-        wrapper.pack(fill="both", expand=True)
-        wrapper.columnconfigure(0, weight=1)
-        wrapper.columnconfigure(1, weight=1)
+        grid = tk.Frame(tab, bg=BG_MAIN)
+        grid.pack(fill="both", expand=True)
+        grid.columnconfigure(0, weight=1)
+        grid.columnconfigure(1, weight=1)
+        grid.rowconfigure(0, weight=1)
 
-        # ── Parcelado ──
-        self._build_calc_card(wrapper, col=0, title="Cálculo Parcelado",
+        # ── Card Parcelado ──
+        self._build_calc_card(grid, col=0, title="// Cálculo Parcelado", accent_color=ACCENT_EMERALD,
             fields=[
-                ("Valor da Causa", "p_vc"),
-                ("Desconto (%)", "p_desc"),
-                ("Entrada (%)", "p_ent"),
-                ("Nº Parcelas", "p_np"),
+                ("parc_valor_causa", "Valor da Causa (R$)"),
+                ("parc_pct_desconto", "Desconto (%)"),
+                ("parc_pct_entrada", "Entrada (%)"),
+                ("parc_num_parcelas", "Nº de Parcelas"),
             ],
             results=[
-                ("Valor desconto", "p_r_desc"),
-                ("Saldo após desconto", "p_r_saldo"),
-                ("Valor entrada", "p_r_ent"),
-                ("Saldo restante", "p_r_rest"),
-                ("Parcela mensal", "p_r_parc"),
+                ("parc_res_desconto", "Valor Desconto", ACCENT_EMERALD),
+                ("parc_res_saldo_desc", "Saldo Após Desconto", TEXT_BRIGHT),
+                ("parc_res_entrada", "Valor Entrada", ACCENT_GOLD),
+                ("parc_res_saldo_rest", "Saldo Restante", ACCENT_BLUE),
+                ("parc_res_parcela", "Parcela Mensal", ACCENT_EMERALD),
             ],
-            calc_cmd=self._calc_parcelado
+            calc_cmd=self._calcular_parcelado
         )
 
-        # ── À Vista ──
-        self._build_calc_card(wrapper, col=1, title="Cálculo À Vista",
+        # ── Card À Vista ──
+        self._build_calc_card(grid, col=1, title="// Cálculo À Vista", accent_color=ACCENT_BLUE,
             fields=[
-                ("Valor da Causa", "v_vc"),
-                ("Desconto (%)", "v_desc"),
+                ("av_valor_causa", "Valor da Causa (R$)"),
+                ("av_pct_desconto", "Desconto (%)"),
             ],
             results=[
-                ("Valor desconto", "v_r_desc"),
-                ("Saldo restante", "v_r_saldo"),
+                ("av_res_desconto", "Valor Desconto", ACCENT_EMERALD),
+                ("av_res_saldo", "Saldo Restante À Vista", ACCENT_BLUE),
             ],
-            calc_cmd=self._calc_avista
+            calc_cmd=self._calcular_avista
         )
 
-    def _build_calc_card(self, parent, col, title, fields, results, calc_cmd):
-        card = tk.Frame(parent, bg=BG_SURFACE, highlightthickness=1,
-                        highlightbackground=BORDER_LIGHT, highlightcolor=BORDER_LIGHT)
-        card.grid(row=0, column=col, sticky="nsew", padx=8, pady=0)
-        parent.rowconfigure(0, weight=1)
+    def _build_calc_card(self, parent, col, title, accent_color, fields, results, calc_cmd):
+        card = tk.Frame(parent, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        card.grid(row=0, column=col, sticky="nsew", padx=6, pady=0)
 
-        inner = tk.Frame(card, bg=BG_SURFACE, padx=20, pady=20)
-        inner.pack(fill="both", expand=True)
+        # Header bar
+        bar = tk.Frame(card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        bar.pack(fill="x")
+        bar.pack_propagate(False)
+        tk.Label(bar, text=title, font=FONT_MONO_BOLD, bg=BG_NAV, fg=accent_color).pack(side="left", padx=14)
 
-        tk.Label(inner, text=title, font=("Segoe UI Semibold", 12),
-                 bg=BG_SURFACE, fg=TEXT).pack(anchor="w", pady=(0, 16))
+        body = tk.Frame(card, bg=BG_CARD, padx=18, pady=16)
+        body.pack(fill="both", expand=True)
 
-        for label, key in fields:
-            tk.Label(inner, text=label, font=("Segoe UI", 8),
-                     bg=BG_SURFACE, fg=TEXT_SEC).pack(anchor="w", pady=(0, 2))
-            ent = tk.Entry(inner, font=("Segoe UI", 11),
-                           bg=BG_INPUT, fg=TEXT, insertbackground=ACCENT,
-                           relief="flat", bd=0, highlightthickness=1,
-                           highlightbackground=BORDER_LIGHT, highlightcolor=BORDER)
+        for key, label in fields:
+            tk.Label(body, text=label, font=FONT_MONO, bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 2))
+            ent = tk.Entry(body, font=FONT_MONO, bg=BG_INPUT, fg=TEXT_BRIGHT,
+                           insertbackground=ACCENT_EMERALD, relief="flat", bd=0,
+                           highlightthickness=1, highlightbackground=BORDER_COLOR,
+                           highlightcolor=accent_color)
             ent.pack(fill="x", ipady=5, pady=(0, 10))
             self.calc_entries[key] = ent
 
-        btn = tk.Button(inner, text="Calcular", font=("Segoe UI Semibold", 10),
-                        bg=ACCENT, fg="#FFF", activebackground=ACCENT_HOVER,
-                        activeforeground="#FFF", relief="flat", cursor="hand2",
+        btn = tk.Button(body, text="> CALCULAR", font=FONT_MONO_BOLD,
+                        bg=BG_NAV, fg=accent_color, activebackground=BORDER_COLOR,
+                        activeforeground=accent_color, relief="flat", cursor="hand2",
                         pady=8, bd=0, command=calc_cmd)
-        btn.pack(fill="x", pady=(4, 16))
-        btn.bind("<Enter>", lambda e: btn.config(bg=ACCENT_HOVER))
-        btn.bind("<Leave>", lambda e: btn.config(bg=ACCENT))
+        btn.pack(fill="x", pady=(4, 14))
+        btn.bind("<Enter>", lambda e: btn.config(bg=BORDER_COLOR))
+        btn.bind("<Leave>", lambda e: btn.config(bg=BG_NAV))
 
-        # Linha separadora
-        tk.Frame(inner, bg=BORDER_LIGHT, height=1).pack(fill="x", pady=(0, 12))
+        # Results divider
+        tk.Frame(body, bg=BORDER_COLOR, height=1).pack(fill="x", pady=(0, 12))
 
         self._calc_results = getattr(self, '_calc_results', {})
-        for label, key in results:
-            row = tk.Frame(inner, bg=BG_SURFACE)
-            row.pack(fill="x", pady=3)
-            tk.Label(row, text=label, font=("Segoe UI", 9),
-                     bg=BG_SURFACE, fg=TEXT_SEC).pack(side="left")
-            lbl = tk.Label(row, text="—", font=("Segoe UI Semibold", 11),
-                           bg=BG_SURFACE, fg=TEXT)
+        for key, label, color in results:
+            row = tk.Frame(body, bg=BG_CARD)
+            row.pack(fill="x", pady=4)
+            tk.Label(row, text=label + ":", font=FONT_MONO, bg=BG_CARD, fg=TEXT_MUTED).pack(side="left")
+            lbl = tk.Label(row, text="—", font=FONT_MONO_BOLD, bg=BG_CARD, fg=color)
             lbl.pack(side="right")
             self._calc_results[key] = lbl
 
-    # ── Lógica da Calculadora ──
-    def _parse_num(self, text):
+    # ── Lógica Calculadora ──
+    def _parse_input(self, text):
         t = text.strip().replace("R$", "").replace(" ", "")
         if not t:
             return None
@@ -478,124 +492,138 @@ class App(tk.Tk):
         except Exception:
             return None
 
-    def _fmt(self, v):
-        if v is None:
+    def _fmt(self, valor):
+        if valor is None:
             return "—"
-        return "R$ " + formatar_valor_brl(v.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
+        return "R$ " + formatar_valor_brl(valor.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
 
-    def _calc_parcelado(self):
-        vc = self._parse_num(self.calc_entries["p_vc"].get())
-        pct_d = self._parse_num(self.calc_entries["p_desc"].get())
-        pct_e = self._parse_num(self.calc_entries["p_ent"].get())
-        np = self._parse_num(self.calc_entries["p_np"].get())
-        if not vc or not pct_d:
-            messagebox.showwarning("", "Preencha ao menos Valor da Causa e Desconto.")
+    def _calcular_parcelado(self):
+        vc = self._parse_input(self.calc_entries["parc_valor_causa"].get())
+        pct_d = self._parse_input(self.calc_entries["parc_pct_desconto"].get())
+        pct_e = self._parse_input(self.calc_entries["parc_pct_entrada"].get())
+        n_parc = self._parse_input(self.calc_entries["parc_num_parcelas"].get())
+
+        if vc is None or pct_d is None:
+            messagebox.showwarning("Aviso", "Preencha ao menos Valor da Causa e % Desconto.")
             return
 
-        desc = (vc * pct_d / 100).quantize(Decimal("0.01"))
-        saldo = vc - desc
-        ent = (saldo * pct_e / 100).quantize(Decimal("0.01")) if pct_e else Decimal("0")
-        rest = saldo - ent
-        parc = (rest / np).quantize(Decimal("0.01")) if np and np > 0 else Decimal("0")
+        desc_valor = (vc * pct_d / Decimal("100")).quantize(Decimal("0.01"))
+        saldo_desc = vc - desc_valor
 
-        self._calc_results["p_r_desc"].config(text=self._fmt(desc))
-        self._calc_results["p_r_saldo"].config(text=self._fmt(saldo))
-        self._calc_results["p_r_ent"].config(text=self._fmt(ent))
-        self._calc_results["p_r_rest"].config(text=self._fmt(rest), fg=BLUE)
-        self._calc_results["p_r_parc"].config(text=self._fmt(parc), fg=GREEN)
+        entrada_valor = Decimal("0")
+        saldo_rest = saldo_desc
+        if pct_e is not None and pct_e > 0:
+            entrada_valor = (saldo_desc * pct_e / Decimal("100")).quantize(Decimal("0.01"))
+            saldo_rest = saldo_desc - entrada_valor
 
-    def _calc_avista(self):
-        vc = self._parse_num(self.calc_entries["v_vc"].get())
-        pct = self._parse_num(self.calc_entries["v_desc"].get())
-        if not vc or not pct:
-            messagebox.showwarning("", "Preencha Valor da Causa e Desconto.")
+        parcela = Decimal("0")
+        if n_parc is not None and n_parc > 0:
+            parcela = (saldo_rest / n_parc).quantize(Decimal("0.01"))
+
+        self._calc_results["parc_res_desconto"].config(text=self._fmt(desc_valor))
+        self._calc_results["parc_res_saldo_desc"].config(text=self._fmt(saldo_desc))
+        self._calc_results["parc_res_entrada"].config(text=self._fmt(entrada_valor))
+        self._calc_results["parc_res_saldo_rest"].config(text=self._fmt(saldo_rest))
+        self._calc_results["parc_res_parcela"].config(text=self._fmt(parcela))
+
+    def _calcular_avista(self):
+        vc = self._parse_input(self.calc_entries["av_valor_causa"].get())
+        pct_d = self._parse_input(self.calc_entries["av_pct_desconto"].get())
+
+        if vc is None or pct_d is None:
+            messagebox.showwarning("Aviso", "Preencha Valor da Causa e % Desconto.")
             return
 
-        desc = (vc * pct / 100).quantize(Decimal("0.01"))
-        saldo = vc - desc
+        desc_valor = (vc * pct_d / Decimal("100")).quantize(Decimal("0.01"))
+        saldo = vc - desc_valor
 
-        self._calc_results["v_r_desc"].config(text=self._fmt(desc))
-        self._calc_results["v_r_saldo"].config(text=self._fmt(saldo), fg=GREEN)
+        self._calc_results["av_res_desconto"].config(text=self._fmt(desc_valor))
+        self._calc_results["av_res_saldo"].config(text=self._fmt(saldo))
 
     # ============================================================
-    # EVENTOS
+    # EVENTOS DO GERADOR
     # ============================================================
     def _limpar_ph(self, _e):
         if self.txt.get("1.0", "end-1c") == PLACEHOLDER:
             self.txt.delete("1.0", "end")
-            self.txt.config(fg=TEXT)
+            self.txt.config(fg=TEXT_BRIGHT)
 
     def _restaurar_ph(self, _e):
         if not self.txt.get("1.0", "end-1c").strip():
             self.txt.insert("1.0", PLACEHOLDER)
-            self.txt.config(fg=TEXT_PLACEHOLDER)
+            self.txt.config(fg=TEXT_DIM)
 
     def _reset_campos(self):
         self.txt.delete("1.0", "end")
         self.txt.insert("1.0", PLACEHOLDER)
-        self.txt.config(fg=TEXT_PLACEHOLDER)
+        self.txt.config(fg=TEXT_DIM)
         for entry in self.entries.values():
             entry.delete(0, "end")
-            entry.config(highlightbackground=BORDER_LIGHT, highlightcolor=BORDER)
-        self.status_var.set("")
+            entry.config(highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_EMERALD)
+        self.status_var.set("// Campos limpos. Aguardando mensagem.")
+        self.status_lbl.config(fg=TEXT_MUTED)
 
     def _interpretar(self):
         msg = self.txt.get("1.0", "end-1c").strip()
         if not msg or msg == PLACEHOLDER:
-            messagebox.showwarning("", "Cole a mensagem primeiro.")
+            messagebox.showwarning("Aviso", "Cole a mensagem primeiro.")
             return
 
         campos = interpretar_mensagem(msg)
+
         for chave, entry in self.entries.items():
             entry.delete(0, "end")
             val = campos.get(chave, "")
             entry.insert(0, val)
             entry.xview_moveto(0)
             if not val and chave in ("nome", "cpf", "valor_acordo"):
-                entry.config(highlightbackground=RED, highlightcolor=RED)
+                entry.config(highlightbackground=COLOR_RED, highlightcolor=COLOR_RED)
             else:
-                entry.config(highlightbackground=BORDER_LIGHT, highlightcolor=BORDER)
+                entry.config(highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_EMERALD)
 
-        vazios = [lab for lab, ch in CAMPOS_REVISAO if not campos.get(ch)]
+        vazios = [lab for ch, lab in CAMPOS_REVISAO if not campos.get(ch)]
         if vazios:
-            self.status_var.set(f"Campos não identificados: {', '.join(vazios)}")
-            self.status_lbl.config(fg=AMBER)
+            self.status_var.set(f"// ⚠️ Campos ausentes: {', '.join(vazios)}")
+            self.status_lbl.config(fg=ACCENT_GOLD)
         else:
-            self.status_var.set("Todos os campos interpretados com sucesso")
-            self.status_lbl.config(fg=GREEN)
+            self.status_var.set("// ✅ Sucesso: Todos os campos foram interpretados!")
+            self.status_lbl.config(fg=ACCENT_EMERALD)
 
     def _gerar(self, tipo="parcelado"):
         modelo = MODELO_AVISTA_PATH if tipo == "avista" else MODELO_PATH
         if not os.path.exists(modelo):
-            messagebox.showerror("Erro", f"Modelo não encontrado: {modelo}")
+            messagebox.showerror("Erro", f"Arquivo modelo não encontrado: {modelo}")
             return
 
         campos = {ch: entry.get().strip() for ch, entry in self.entries.items()}
         if not campos.get("nome"):
-            messagebox.showwarning("", "O campo Nome é obrigatório.")
+            messagebox.showwarning("Aviso", "O campo 'Nome / Cliente' é obrigatório.")
             return
 
+        tipo_label = "PARCELADO" if tipo == "parcelado" else "À VISTA"
+        self.status_var.set(f"// Processando geração do termo [{tipo_label}]...")
+        self.status_lbl.config(fg=ACCENT_BLUE)
         self.btn_gerar_parcelado.config(state="disabled")
         self.btn_gerar_avista.config(state="disabled")
         self.update()
 
         try:
             caminho, dados = gerar_documento(campos, modelo)
-            tipo_label = "Parcelado" if tipo == "parcelado" else "À Vista"
-            self.status_var.set(f"Documento gerado: {caminho}")
-            self.status_lbl.config(fg=GREEN)
+            self.status_var.set(f"// ✓ Gerado com sucesso: {caminho}")
+            self.status_lbl.config(fg=ACCENT_EMERALD)
             resp = messagebox.askyesno(
-                "Documento gerado",
-                f"Termo ({tipo_label}) gerado com sucesso.\n\n"
-                f"{dados['nome_cliente']}\n{dados['cpf_cliente']}\n\n"
-                f"Abrir agora?"
+                "Termo Gerado",
+                f"Termo de acordo ({tipo_label}) gerado com sucesso!\n\n"
+                f"Cliente: {dados['nome_cliente']}\n"
+                f"CPF: {dados['cpf_cliente']}\n\n"
+                f"Deseja abrir o arquivo Word agora?"
             )
             if resp:
                 os.startfile(os.path.abspath(caminho))
             self._reset_campos()
         except Exception as e:
-            self.status_var.set(f"Erro: {e}")
-            self.status_lbl.config(fg=RED)
+            self.status_var.set(f"// ❌ Erro ao gerar: {e}")
+            self.status_lbl.config(fg=COLOR_RED)
             messagebox.showerror("Erro", str(e))
         finally:
             self.btn_gerar_parcelado.config(state="normal")
