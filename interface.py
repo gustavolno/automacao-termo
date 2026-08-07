@@ -119,30 +119,30 @@ def gerar_documento(campos_revisados: dict, modelo_path: str = MODELO_PATH):
 
 
 # ============================================================
-# PALETA DE CORES (INSPIRADA NO PORTEFÓLIO STEADY-BELEKOY)
+# PALETA DE CORES — ALDRIGUES CÂNDIDO ADVOCACIA (DARK GOLD/NEON)
 # ============================================================
 BG_MAIN = "#0a0d12"        # Dark charcoal navy background
-BG_NAV = "#0f1318"         # Slightly lighter header bar
-BG_CARD = "#131920"        # Sleek dark card
-BG_INPUT = "#0a0d12"       # Code terminal input
-BORDER_COLOR = "#1e2a38"   # Subtle navy border
+BG_NAV = "#0f1318"         # Dark header navbar
+BG_CARD = "#131920"        # Dark card container
+BG_INPUT = "#0a0d12"       # Inner input area
+BORDER_COLOR = "#1e2a38"   # Subtle border
 
-ACCENT_EMERALD = "#00e5a0" # Neon Emerald / Mint
-ACCENT_BLUE = "#0094ff"    # Electric Cyan/Blue
-ACCENT_GOLD = "#f0b429"    # Warm Yellow/Gold
+ACCENT_GOLD = "#D4AF37"    # Luxury Law Firm Gold (Primary Brand)
+ACCENT_GOLD_HOVER = "#F0C850"
+ACCENT_EMERALD = "#00e5a0" # Neon Mint/Green (Success & Financial)
+ACCENT_CYAN = "#0094ff"    # Electric Blue/Cyan
 
-TEXT_BRIGHT = "#e8f0fe"    # Cool bright text
+TEXT_BRIGHT = "#e8f0fe"    # Primary white-blue text
 TEXT_MUTED = "#6b7f96"     # Muted slate text
 TEXT_DIM = "#41536b"       # Placeholder text
+
 COLOR_RED = "#ff5f56"      # Mac terminal red
 COLOR_YELLOW = "#ffbd2e"   # Mac terminal yellow
 COLOR_GREEN = "#27c93f"    # Mac terminal green
 
 FONT_MONO = ("Consolas", 10)
 FONT_MONO_BOLD = ("Consolas", 10, "bold")
-FONT_TITLE = ("Consolas", 12, "bold")
-FONT_SANS = ("Segoe UI", 9)
-FONT_SANS_BOLD = ("Segoe UI", 9, "bold")
+FONT_TITLE = ("Georgia", 11, "bold")
 
 CAMPOS_REVISAO = [
     ("nome", "Nome / Cliente"),
@@ -164,13 +164,13 @@ CAMPOS_REVISAO = [
     ("competencias", "Competências"),
 ]
 
-PLACEHOLDER = "// Cole a mensagem recebida exatamente como chegou..."
+PLACEHOLDER = "// Cole a mensagem do atendimento jurídica/acordo recebida..."
 
 
 class App(tk.Tk):
     def __init__(self):
         super().__init__()
-        self.title("gustavo@dev:~ // gerador-termo")
+        self.title("Aldrigues Cândido Advocacia — Gerador de Termos de Acordo")
         self.configure(bg=BG_MAIN)
         self.resizable(True, True)
         self.minsize(980, 680)
@@ -186,20 +186,21 @@ class App(tk.Tk):
         self.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
     def _build_ui(self):
-        # ── NAV BAR ──
-        navbar = tk.Frame(self, bg=BG_NAV, height=52, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        # ── NAV BAR (Estilo Aldrigues Cândido Advocacia) ──
+        navbar = tk.Frame(self, bg=BG_NAV, height=54, highlightthickness=1, highlightbackground=BORDER_COLOR)
         navbar.pack(fill="x")
         navbar.pack_propagate(False)
 
-        # Brand logo
+        # Logotipo / Marca Advocacia
         brand_frame = tk.Frame(navbar, bg=BG_NAV)
         brand_frame.pack(side="left", padx=20)
         
-        tk.Label(brand_frame, text="~/", font=("Consolas", 11, "bold"), bg=BG_NAV, fg=ACCENT_EMERALD).pack(side="left")
-        tk.Label(brand_frame, text="gustavo-lino", font=("Consolas", 11, "bold"), bg=BG_NAV, fg=TEXT_BRIGHT).pack(side="left")
-        tk.Label(brand_frame, text=" / termo-acordo.v2", font=("Consolas", 9), bg=BG_NAV, fg=TEXT_MUTED).pack(side="left")
+        tk.Label(brand_frame, text="⚖ ", font=("Segoe UI", 12), bg=BG_NAV, fg=ACCENT_GOLD).pack(side="left")
+        tk.Label(brand_frame, text="ALDRIGUES CÂNDIDO", font=("Georgia", 11, "bold"), bg=BG_NAV, fg=ACCENT_GOLD).pack(side="left")
+        tk.Label(brand_frame, text=" ADVOCACIA", font=("Segoe UI", 9, "bold"), bg=BG_NAV, fg=TEXT_BRIGHT).pack(side="left")
+        tk.Label(brand_frame, text=" / modulo-termo", font=FONT_MONO, bg=BG_NAV, fg=TEXT_MUTED).pack(side="left")
 
-        # Tabs on top right
+        # Tabs no topo direito
         self._tab_frames = {}
         self._tab_buttons = {}
         self._active_tab = None
@@ -208,16 +209,16 @@ class App(tk.Tk):
         tabs_frame.pack(side="right", padx=16)
 
         tabs = [
-            ("gerador", "[ 01. GERADOR ]"),
-            ("calculadora", "[ 02. CALCULADORA ]"),
+            ("gerador", "[ 01. GERADOR DE TERMOS ]"),
+            ("calculadora", "[ 02. CALCULADORA DE NEGOCIAÇÃO ]"),
         ]
 
         for key, label in tabs:
-            btn = tk.Label(tabs_frame, text=label, font=("Consolas", 9, "bold"),
+            btn = tk.Label(tabs_frame, text=label, font=FONT_MONO_BOLD,
                            bg=BG_NAV, fg=TEXT_MUTED, cursor="hand2", padx=12, pady=14)
             btn.pack(side="left")
             btn.bind("<Button-1>", lambda e, k=key: self._switch_tab(k))
-            btn.bind("<Enter>", lambda e, b=btn, k=key: b.config(fg=ACCENT_EMERALD) if k != self._active_tab else None)
+            btn.bind("<Enter>", lambda e, b=btn, k=key: b.config(fg=ACCENT_GOLD) if k != self._active_tab else None)
             btn.bind("<Leave>", lambda e, b=btn, k=key: b.config(fg=TEXT_MUTED) if k != self._active_tab else None)
             self._tab_buttons[key] = btn
 
@@ -239,12 +240,12 @@ class App(tk.Tk):
 
         for k, btn in self._tab_buttons.items():
             if k == key:
-                btn.config(fg=ACCENT_EMERALD)
+                btn.config(fg=ACCENT_GOLD)
             else:
                 btn.config(fg=TEXT_MUTED)
 
     # ============================================================
-    # ABA 1 - GERADOR
+    # ABA 1 - GERADOR DE TERMOS
     # ============================================================
     def _build_tab_gerador(self):
         tab = tk.Frame(self._content, bg=BG_MAIN)
@@ -256,13 +257,13 @@ class App(tk.Tk):
         grid.columnconfigure(1, weight=1)
         grid.rowconfigure(0, weight=1)
 
-        # ── Terminal Card Esquerda (Entrada) ──
+        # ── Card Esquerda (Entrada Bruta) ──
         term_card = tk.Frame(grid, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
         term_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
         term_card.rowconfigure(1, weight=1)
         term_card.columnconfigure(0, weight=1)
 
-        # Terminal Header Bar (Mac dots)
+        # Header Bar do Terminal
         t_bar = tk.Frame(term_card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
         t_bar.grid(row=0, column=0, sticky="ew")
         t_bar.pack_propagate(False)
@@ -276,13 +277,13 @@ class App(tk.Tk):
         tk.Canvas(dots_f, width=10, height=10, bg=BG_NAV, highlightthickness=0).pack(side="left", padx=2)
         dots_f.winfo_children()[-1].create_oval(0, 0, 9, 9, fill=COLOR_GREEN, outline="")
 
-        tk.Label(t_bar, text="mensagem_bruta.txt", font=FONT_MONO, bg=BG_NAV, fg=TEXT_MUTED).pack(side="left", padx=8)
+        tk.Label(t_bar, text="mensagem_atendimento.txt", font=FONT_MONO, bg=BG_NAV, fg=TEXT_MUTED).pack(side="left", padx=8)
 
-        # Scrolled Text Box
+        # Scrolled Text
         self.txt = scrolledtext.ScrolledText(
             term_card, wrap=tk.WORD, font=FONT_MONO,
             bg=BG_INPUT, fg=TEXT_DIM,
-            insertbackground=ACCENT_EMERALD, relief="flat",
+            insertbackground=ACCENT_GOLD, relief="flat",
             padx=14, pady=12, bd=0,
             selectbackground=BORDER_COLOR, selectforeground=TEXT_BRIGHT
         )
@@ -294,8 +295,8 @@ class App(tk.Tk):
         # Botão Interpretar
         btn_interp = tk.Button(
             term_card, text="❯ INTERPRETAR MENSAGEM",
-            font=FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_EMERALD,
-            activebackground=BORDER_COLOR, activeforeground=ACCENT_EMERALD,
+            font=FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_GOLD,
+            activebackground=BORDER_COLOR, activeforeground=ACCENT_GOLD_HOVER,
             relief="flat", cursor="hand2", pady=10, bd=0,
             command=self._interpretar
         )
@@ -303,7 +304,7 @@ class App(tk.Tk):
         btn_interp.bind("<Enter>", lambda e: btn_interp.config(bg=BORDER_COLOR))
         btn_interp.bind("<Leave>", lambda e: btn_interp.config(bg=BG_NAV))
 
-        # ── Card Direita (Campos Extraídos) ──
+        # ── Card Direita (Revisão de Campos) ──
         fields_card = tk.Frame(grid, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
         fields_card.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
         fields_card.rowconfigure(1, weight=1)
@@ -312,11 +313,11 @@ class App(tk.Tk):
         f_bar = tk.Frame(fields_card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
         f_bar.grid(row=0, column=0, sticky="ew")
         f_bar.pack_propagate(False)
-        tk.Label(f_bar, text="campos_extraidos.json", font=FONT_MONO, bg=BG_NAV, fg=ACCENT_BLUE).pack(side="left", padx=14)
+        tk.Label(f_bar, text="campos_minuta.json", font=FONT_MONO, bg=BG_NAV, fg=ACCENT_GOLD).pack(side="left", padx=14)
 
         canvas = tk.Canvas(fields_card, bg=BG_CARD, highlightthickness=0, bd=0)
         scrollbar = tk.Scrollbar(fields_card, orient="vertical", command=canvas.yview,
-                                 bg=BG_CARD, troughcolor=BG_MAIN, activebackground=ACCENT_EMERALD)
+                                 bg=BG_CARD, troughcolor=BG_MAIN, activebackground=ACCENT_GOLD)
         scroll_frame = tk.Frame(canvas, bg=BG_CARD)
         scroll_frame.bind("<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all")))
 
@@ -339,19 +340,19 @@ class App(tk.Tk):
 
             ent = tk.Entry(scroll_frame, font=FONT_MONO,
                            bg=BG_INPUT, fg=TEXT_BRIGHT,
-                           insertbackground=ACCENT_EMERALD,
+                           insertbackground=ACCENT_GOLD,
                            relief="flat", bd=0,
                            highlightthickness=1,
                            highlightbackground=BORDER_COLOR,
-                           highlightcolor=ACCENT_EMERALD)
+                           highlightcolor=ACCENT_GOLD)
             ent.grid(row=i, column=1, sticky="ew", pady=4, ipady=4)
             self.entries[chave] = ent
 
-        # ── Action Buttons Footer ──
+        # ── Rodapé de Ações ──
         footer = tk.Frame(tab, bg=BG_MAIN, pady=10)
         footer.pack(fill="x")
 
-        self.status_var = tk.StringVar(value="// Sistema pronto. Aguardando entrada.")
+        self.status_var = tk.StringVar(value="// Aldrigues Cândido Advocacia — Aguardando mensagem.")
         self.status_lbl = tk.Label(footer, textvariable=self.status_var,
                                    font=FONT_MONO, bg=BG_MAIN, fg=TEXT_MUTED, anchor="w")
         self.status_lbl.pack(fill="x", pady=(0, 8))
@@ -360,29 +361,29 @@ class App(tk.Tk):
         btn_row.pack(fill="x")
 
         self.btn_gerar_parcelado = tk.Button(
-            btn_row, text="[ GERAR PARCELADO ]",
-            font=FONT_MONO_BOLD, bg=ACCENT_EMERALD, fg=BG_MAIN,
-            activebackground="#00ffb3", activeforeground=BG_MAIN,
+            btn_row, text="[ ⚖ GERAR TERMO PARCELADO ]",
+            font=FONT_MONO_BOLD, bg=ACCENT_GOLD, fg=BG_MAIN,
+            activebackground=ACCENT_GOLD_HOVER, activeforeground=BG_MAIN,
             relief="flat", cursor="hand2", pady=10, bd=0,
             command=lambda: self._gerar("parcelado")
         )
         self.btn_gerar_parcelado.pack(side="left", fill="x", expand=True, padx=(0, 6))
-        self.btn_gerar_parcelado.bind("<Enter>", lambda e: self.btn_gerar_parcelado.config(bg="#00ffb3"))
-        self.btn_gerar_parcelado.bind("<Leave>", lambda e: self.btn_gerar_parcelado.config(bg=ACCENT_EMERALD))
+        self.btn_gerar_parcelado.bind("<Enter>", lambda e: self.btn_gerar_parcelado.config(bg=ACCENT_GOLD_HOVER))
+        self.btn_gerar_parcelado.bind("<Leave>", lambda e: self.btn_gerar_parcelado.config(bg=ACCENT_GOLD))
 
         self.btn_gerar_avista = tk.Button(
-            btn_row, text="[ GERAR À VISTA ]",
-            font=FONT_MONO_BOLD, bg=ACCENT_BLUE, fg=BG_MAIN,
-            activebackground="#33aaff", activeforeground=BG_MAIN,
+            btn_row, text="[ 💰 GERAR TERMO À VISTA ]",
+            font=FONT_MONO_BOLD, bg=ACCENT_EMERALD, fg=BG_MAIN,
+            activebackground="#00ffb3", activeforeground=BG_MAIN,
             relief="flat", cursor="hand2", pady=10, bd=0,
             command=lambda: self._gerar("avista")
         )
         self.btn_gerar_avista.pack(side="left", fill="x", expand=True, padx=(6, 6))
-        self.btn_gerar_avista.bind("<Enter>", lambda e: self.btn_gerar_avista.config(bg="#33aaff"))
-        self.btn_gerar_avista.bind("<Leave>", lambda e: self.btn_gerar_avista.config(bg=ACCENT_BLUE))
+        self.btn_gerar_avista.bind("<Enter>", lambda e: self.btn_gerar_avista.config(bg="#00ffb3"))
+        self.btn_gerar_avista.bind("<Leave>", lambda e: self.btn_gerar_avista.config(bg=ACCENT_EMERALD))
 
         self.btn_reset = tk.Button(
-            btn_row, text="[ RESETAR ]",
+            btn_row, text="[ RESETAR CAMPOS ]",
             font=FONT_MONO_BOLD, bg=BG_CARD, fg=TEXT_MUTED,
             activebackground=BORDER_COLOR, activeforeground=TEXT_BRIGHT,
             relief="flat", cursor="hand2", pady=10, bd=0,
@@ -406,32 +407,32 @@ class App(tk.Tk):
         grid.rowconfigure(0, weight=1)
 
         # ── Card Parcelado ──
-        self._build_calc_card(grid, col=0, title="// Cálculo Parcelado", accent_color=ACCENT_EMERALD,
+        self._build_calc_card(grid, col=0, title="// Simulação de Acordo Parcelado", accent_color=ACCENT_GOLD,
             fields=[
                 ("parc_valor_causa", "Valor da Causa (R$)"),
-                ("parc_pct_desconto", "Desconto (%)"),
-                ("parc_pct_entrada", "Entrada (%)"),
-                ("parc_num_parcelas", "Nº de Parcelas"),
+                ("parc_pct_desconto", "Desconto Concedido (%)"),
+                ("parc_pct_entrada", "Entrada Mínima (%)"),
+                ("parc_num_parcelas", "Número de Parcelas"),
             ],
             results=[
-                ("parc_res_desconto", "Valor Desconto", ACCENT_EMERALD),
+                ("parc_res_desconto", "Valor de Desconto", ACCENT_GOLD),
                 ("parc_res_saldo_desc", "Saldo Após Desconto", TEXT_BRIGHT),
-                ("parc_res_entrada", "Valor Entrada", ACCENT_GOLD),
-                ("parc_res_saldo_rest", "Saldo Restante", ACCENT_BLUE),
-                ("parc_res_parcela", "Parcela Mensal", ACCENT_EMERALD),
+                ("parc_res_entrada", "Valor da Entrada", ACCENT_EMERALD),
+                ("parc_res_saldo_rest", "Saldo Restante", ACCENT_CYAN),
+                ("parc_res_parcela", "Valor Parcela Mensal", ACCENT_GOLD),
             ],
             calc_cmd=self._calcular_parcelado
         )
 
         # ── Card À Vista ──
-        self._build_calc_card(grid, col=1, title="// Cálculo À Vista", accent_color=ACCENT_BLUE,
+        self._build_calc_card(grid, col=1, title="// Simulação de Acordo À Vista", accent_color=ACCENT_EMERALD,
             fields=[
                 ("av_valor_causa", "Valor da Causa (R$)"),
-                ("av_pct_desconto", "Desconto (%)"),
+                ("av_pct_desconto", "Desconto Concedido (%)"),
             ],
             results=[
-                ("av_res_desconto", "Valor Desconto", ACCENT_EMERALD),
-                ("av_res_saldo", "Saldo Restante À Vista", ACCENT_BLUE),
+                ("av_res_desconto", "Valor de Desconto", ACCENT_GOLD),
+                ("av_res_saldo", "Valor Quitação À Vista", ACCENT_EMERALD),
             ],
             calc_cmd=self._calcular_avista
         )
@@ -440,7 +441,6 @@ class App(tk.Tk):
         card = tk.Frame(parent, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
         card.grid(row=0, column=col, sticky="nsew", padx=6, pady=0)
 
-        # Header bar
         bar = tk.Frame(card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
         bar.pack(fill="x")
         bar.pack_propagate(False)
@@ -452,13 +452,13 @@ class App(tk.Tk):
         for key, label in fields:
             tk.Label(body, text=label, font=FONT_MONO, bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 2))
             ent = tk.Entry(body, font=FONT_MONO, bg=BG_INPUT, fg=TEXT_BRIGHT,
-                           insertbackground=ACCENT_EMERALD, relief="flat", bd=0,
+                           insertbackground=ACCENT_GOLD, relief="flat", bd=0,
                            highlightthickness=1, highlightbackground=BORDER_COLOR,
                            highlightcolor=accent_color)
             ent.pack(fill="x", ipady=5, pady=(0, 10))
             self.calc_entries[key] = ent
 
-        btn = tk.Button(body, text="> CALCULAR", font=FONT_MONO_BOLD,
+        btn = tk.Button(body, text="> CALCULAR SIMULAÇÃO", font=FONT_MONO_BOLD,
                         bg=BG_NAV, fg=accent_color, activebackground=BORDER_COLOR,
                         activeforeground=accent_color, relief="flat", cursor="hand2",
                         pady=8, bd=0, command=calc_cmd)
@@ -466,7 +466,6 @@ class App(tk.Tk):
         btn.bind("<Enter>", lambda e: btn.config(bg=BORDER_COLOR))
         btn.bind("<Leave>", lambda e: btn.config(bg=BG_NAV))
 
-        # Results divider
         tk.Frame(body, bg=BORDER_COLOR, height=1).pack(fill="x", pady=(0, 12))
 
         self._calc_results = getattr(self, '_calc_results', {})
@@ -559,8 +558,8 @@ class App(tk.Tk):
         self.txt.config(fg=TEXT_DIM)
         for entry in self.entries.values():
             entry.delete(0, "end")
-            entry.config(highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_EMERALD)
-        self.status_var.set("// Campos limpos. Aguardando mensagem.")
+            entry.config(highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_GOLD)
+        self.status_var.set("// Aldrigues Cândido Advocacia — Campos limpos.")
         self.status_lbl.config(fg=TEXT_MUTED)
 
     def _interpretar(self):
@@ -579,14 +578,14 @@ class App(tk.Tk):
             if not val and chave in ("nome", "cpf", "valor_acordo"):
                 entry.config(highlightbackground=COLOR_RED, highlightcolor=COLOR_RED)
             else:
-                entry.config(highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_EMERALD)
+                entry.config(highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_GOLD)
 
         vazios = [lab for ch, lab in CAMPOS_REVISAO if not campos.get(ch)]
         if vazios:
             self.status_var.set(f"// ⚠️ Campos ausentes: {', '.join(vazios)}")
             self.status_lbl.config(fg=ACCENT_GOLD)
         else:
-            self.status_var.set("// ✅ Sucesso: Todos os campos foram interpretados!")
+            self.status_var.set("// ✅ Sucesso: Todos os campos foram interpretados com sucesso!")
             self.status_lbl.config(fg=ACCENT_EMERALD)
 
     def _gerar(self, tipo="parcelado"):
@@ -601,15 +600,15 @@ class App(tk.Tk):
             return
 
         tipo_label = "PARCELADO" if tipo == "parcelado" else "À VISTA"
-        self.status_var.set(f"// Processando geração do termo [{tipo_label}]...")
-        self.status_lbl.config(fg=ACCENT_BLUE)
+        self.status_var.set(f"// Gerando minuta de termo de acordo [{tipo_label}]...")
+        self.status_lbl.config(fg=ACCENT_CYAN)
         self.btn_gerar_parcelado.config(state="disabled")
         self.btn_gerar_avista.config(state="disabled")
         self.update()
 
         try:
             caminho, dados = gerar_documento(campos, modelo)
-            self.status_var.set(f"// ✓ Gerado com sucesso: {caminho}")
+            self.status_var.set(f"// ✓ Documento jurídico gerado com sucesso: {caminho}")
             self.status_lbl.config(fg=ACCENT_EMERALD)
             resp = messagebox.askyesno(
                 "Termo Gerado",
