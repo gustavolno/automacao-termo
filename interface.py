@@ -131,6 +131,7 @@ ACCENT_GOLD = "#D4AF37"    # Luxury Law Firm Gold (Primary Brand)
 ACCENT_GOLD_HOVER = "#F0C850"
 ACCENT_EMERALD = "#00e5a0" # Neon Mint/Green (Success & Financial)
 ACCENT_CYAN = "#0094ff"    # Electric Blue/Cyan
+ACCENT_PINK = "#ff70a6"    # Soft Pink/Purple for Saldo Pós Entrada
 
 TEXT_BRIGHT = "#e8f0fe"    # Primary white-blue text
 TEXT_MUTED = "#6b7f96"     # Muted slate text
@@ -142,7 +143,6 @@ COLOR_GREEN = "#27c93f"    # Mac terminal green
 
 FONT_MONO = ("Consolas", 10)
 FONT_MONO_BOLD = ("Consolas", 10, "bold")
-FONT_TITLE = ("Georgia", 11, "bold")
 
 CAMPOS_REVISAO = [
     ("nome", "Nome / Cliente"),
@@ -394,7 +394,7 @@ class App(tk.Tk):
         self.btn_reset.bind("<Leave>", lambda e: self.btn_reset.config(bg=BG_CARD, fg=TEXT_MUTED))
 
     # ============================================================
-    # ABA 2 - CALCULADORA
+    # ABA 2 - CALCULADORA DE NEGOCIAÇÃO
     # ============================================================
     def _build_tab_calculadora(self):
         tab = tk.Frame(self._content, bg=BG_MAIN)
@@ -407,32 +407,32 @@ class App(tk.Tk):
         grid.rowconfigure(0, weight=1)
 
         # ── Card Parcelado ──
-        self._build_calc_card(grid, col=0, title="// Simulação de Acordo Parcelado", accent_color=ACCENT_GOLD,
+        self._build_calc_card(grid, col=0, title="// Simulação Parcelada (Campos Brancos = Editáveis)", accent_color=ACCENT_GOLD,
             fields=[
                 ("parc_valor_causa", "Valor da Causa (R$)"),
-                ("parc_pct_desconto", "Desconto Concedido (%)"),
-                ("parc_pct_entrada", "Entrada Mínima (%)"),
-                ("parc_num_parcelas", "Número de Parcelas"),
+                ("parc_pct_desconto", "% Desconto"),
+                ("parc_pct_entrada", "% Entrada"),
+                ("parc_num_parcelas", "Parcelas (Nº)"),
             ],
             results=[
                 ("parc_res_desconto", "Valor de Desconto", ACCENT_GOLD),
-                ("parc_res_saldo_desc", "Saldo Após Desconto", TEXT_BRIGHT),
-                ("parc_res_entrada", "Valor da Entrada", ACCENT_EMERALD),
-                ("parc_res_saldo_rest", "Saldo Restante", ACCENT_CYAN),
-                ("parc_res_parcela", "Valor Parcela Mensal", ACCENT_GOLD),
+                ("parc_res_saldo_desc", "Saldo Restante (Pós Desconto)", ACCENT_CYAN),
+                ("parc_res_entrada", "Valor de Entrada", ACCENT_EMERALD),
+                ("parc_res_saldo_rest", "Saldo Restante (Pós Entrada)", ACCENT_PINK),
+                ("parc_res_parcela", "Parcela Mensal", ACCENT_EMERALD),
             ],
             calc_cmd=self._calcular_parcelado
         )
 
         # ── Card À Vista ──
-        self._build_calc_card(grid, col=1, title="// Simulação de Acordo À Vista", accent_color=ACCENT_EMERALD,
+        self._build_calc_card(grid, col=1, title="// Simulação À Vista (Campos Brancos = Editáveis)", accent_color=ACCENT_EMERALD,
             fields=[
                 ("av_valor_causa", "Valor da Causa (R$)"),
-                ("av_pct_desconto", "Desconto Concedido (%)"),
+                ("av_pct_desconto", "% Desconto"),
             ],
             results=[
                 ("av_res_desconto", "Valor de Desconto", ACCENT_GOLD),
-                ("av_res_saldo", "Valor Quitação À Vista", ACCENT_EMERALD),
+                ("av_res_saldo", "Saldo Restante (Quitação)", ACCENT_EMERALD),
             ],
             calc_cmd=self._calcular_avista
         )
@@ -449,16 +449,26 @@ class App(tk.Tk):
         body = tk.Frame(card, bg=BG_CARD, padx=18, pady=16)
         body.pack(fill="both", expand=True)
 
+        # Notice indicator for editable fields
+        tk.Label(body, text="📝 [ EDITÁVEIS ] Digite nos campos abaixo:", font=("Consolas", 8), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 8))
+
         for key, label in fields:
-            tk.Label(body, text=label, font=FONT_MONO, bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 2))
-            ent = tk.Entry(body, font=FONT_MONO, bg=BG_INPUT, fg=TEXT_BRIGHT,
-                           insertbackground=ACCENT_GOLD, relief="flat", bd=0,
-                           highlightthickness=1, highlightbackground=BORDER_COLOR,
+            lbl_frame = tk.Frame(body, bg=BG_CARD)
+            lbl_frame.pack(fill="x")
+            tk.Label(lbl_frame, text=label, font=FONT_MONO, bg=BG_CARD, fg=TEXT_BRIGHT).pack(side="left")
+            tk.Label(lbl_frame, text=" [EDITÁVEL]", font=("Consolas", 7, "bold"), bg=BG_CARD, fg=ACCENT_GOLD).pack(side="left", padx=4)
+
+            # Input entries with distinct white-bordered highlight to emphasize editability
+            ent = tk.Entry(body, font=FONT_MONO_BOLD, bg=BG_INPUT, fg="#ffffff",
+                           insertbackground="#ffffff", relief="flat", bd=0,
+                           highlightthickness=1, highlightbackground="#ffffff",
                            highlightcolor=accent_color)
-            ent.pack(fill="x", ipady=5, pady=(0, 10))
+            ent.pack(fill="x", ipady=6, pady=(2, 10))
+            # Bind real-time calculation on keypress!
+            ent.bind("<KeyRelease>", lambda e: calc_cmd())
             self.calc_entries[key] = ent
 
-        btn = tk.Button(body, text="> CALCULAR SIMULAÇÃO", font=FONT_MONO_BOLD,
+        btn = tk.Button(body, text="⚡ CALCULAR SIMULAÇÃO", font=FONT_MONO_BOLD,
                         bg=BG_NAV, fg=accent_color, activebackground=BORDER_COLOR,
                         activeforeground=accent_color, relief="flat", cursor="hand2",
                         pady=8, bd=0, command=calc_cmd)
@@ -467,6 +477,8 @@ class App(tk.Tk):
         btn.bind("<Leave>", lambda e: btn.config(bg=BG_NAV))
 
         tk.Frame(body, bg=BORDER_COLOR, height=1).pack(fill="x", pady=(0, 12))
+
+        tk.Label(body, text="📊 [ CALCULADOS ] Resultados automáticos:", font=("Consolas", 8), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 6))
 
         self._calc_results = getattr(self, '_calc_results', {})
         for key, label, color in results:
@@ -479,7 +491,7 @@ class App(tk.Tk):
 
     # ── Lógica Calculadora ──
     def _parse_input(self, text):
-        t = text.strip().replace("R$", "").replace(" ", "")
+        t = text.strip().replace("R$", "").replace("%", "").replace(" ", "")
         if not t:
             return None
         if "," in t and "." in t:
@@ -503,7 +515,11 @@ class App(tk.Tk):
         n_parc = self._parse_input(self.calc_entries["parc_num_parcelas"].get())
 
         if vc is None or pct_d is None:
-            messagebox.showwarning("Aviso", "Preencha ao menos Valor da Causa e % Desconto.")
+            self._calc_results["parc_res_desconto"].config(text="—")
+            self._calc_results["parc_res_saldo_desc"].config(text="—")
+            self._calc_results["parc_res_entrada"].config(text="—")
+            self._calc_results["parc_res_saldo_rest"].config(text="—")
+            self._calc_results["parc_res_parcela"].config(text="—")
             return
 
         desc_valor = (vc * pct_d / Decimal("100")).quantize(Decimal("0.01"))
@@ -530,7 +546,8 @@ class App(tk.Tk):
         pct_d = self._parse_input(self.calc_entries["av_pct_desconto"].get())
 
         if vc is None or pct_d is None:
-            messagebox.showwarning("Aviso", "Preencha Valor da Causa e % Desconto.")
+            self._calc_results["av_res_desconto"].config(text="—")
+            self._calc_results["av_res_saldo"].config(text="—")
             return
 
         desc_valor = (vc * pct_d / Decimal("100")).quantize(Decimal("0.01"))
