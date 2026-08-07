@@ -135,12 +135,7 @@ def processar_competencias(texto: str) -> str:
     for i in range(1, len(datas_obj)):
         atual = datas_obj[i]
         anterior = datas_obj[i - 1]
-        ano_esp = anterior.year
-        mes_esp = anterior.month + 1
-        if mes_esp > 12:
-            mes_esp = 1
-            ano_esp += 1
-        if atual.year == ano_esp and atual.month == mes_esp:
+        if atual.year == anterior.year and atual.month == anterior.month + 1:
             grupo_atual.append(atual)
         else:
             grupos.append(grupo_atual)
@@ -248,13 +243,8 @@ def processar_demonstrativo(texto: str) -> dict:
         curr_y, curr_m = keys_ordenadas[i]
         prev_y, prev_m = keys_ordenadas[i-1]
         
-        exp_y = prev_y
-        exp_m = prev_m + 1
-        if exp_m > 12:
-            exp_m = 1
-            exp_y += 1
-
-        if curr_y == exp_y and curr_m == exp_m:
+        # Inicia novo grupo se mudar de ano OU se houver lacuna de mês
+        if curr_y == prev_y and curr_m == prev_m + 1:
             grupo_atual.append(keys_ordenadas[i])
         else:
             grupos.append(grupo_atual)
@@ -271,10 +261,10 @@ def processar_demonstrativo(texto: str) -> dict:
 
         if len(g) == 1:
             partes.append(dt_ini_str)
-            detalhes.append(f"Mês único: {dt_ini_str}")
+            detalhes.append(f"Mês único ({key_ini[0]}): {dt_ini_str}")
         else:
             partes.append(f"{dt_ini_str} a {dt_fim_str}")
-            detalhes.append(f"Período: {dt_ini_str} a {dt_fim_str} ({len(g)} meses)")
+            detalhes.append(f"Ano {key_ini[0]}: {dt_ini_str} a {dt_fim_str} ({len(g)} meses)")
 
     if len(partes) > 1:
         res["competencias"] = (", ".join(partes[:-1]) + " e " + partes[-1]).strip()
