@@ -161,3 +161,46 @@ def test_screenshot_3_dados_acordo():
     assert dados["vencimento_entrada"] == "03/08/2026"
     assert dados["inicio_parcelas"] == "10/09/2026"
     assert dados["dia_parcela"] == "10"
+
+
+def test_endereco_com_cep_formato():
+    """
+    Teste com 'Endereço com CEP:' - formato que junta endereço e CEP no mesmo rótulo.
+    """
+    mensagem = """Prezados,
+Solicito termo nos seguintes moldes:
+PROCESSO: 0829931-61.2026.8.23.0010
+Beneficiário: DYUSKE RODRIGUES EDA
+CPF: 74434624253
+Telefone: 95 99771734
+E-mail: drodrigueseda@gmail.com
+Endereço com CEP: Rua Armando Nogueira. 692. Bairro:Buritis. Cep 69309-160
+Valor da causa: R$ 37.307,48
+Matrícula: 1291826
+Competências negociadas: 10/07/2023 a 12/11/2025
+Acordo fechado no valor de R$ 28.900,00
+A entrada no valor de R$ 2.090,00 com vencimento em 07/08/2026 + 24 parcelas de R$ 1.117,08 com vencimento todo dia 10 de cada mês, iniciando em SETEMBRO.
+
+Demonstrativo em anexo e salvo no global.
+
+Atenciosamente,
+Yanca"""
+
+    dados = interpretar_mensagem(mensagem)
+
+    assert dados["nome"] == "DYUSKE RODRIGUES EDA"
+    assert dados["cpf"] == "744.346.242-53"
+    assert dados["processo"] == "0829931-61.2026.8.23.0010"
+    assert "95 99771734" in dados["telefone"]
+    assert dados["email"] == "drodrigueseda@gmail.com"
+    assert "Rua Armando Nogueira" in dados["endereco"]
+    assert dados["cep"] == "69309-160"
+    assert dados["valor_original"] == "37.307,48"
+    assert dados["matricula"] == "1291826"
+    assert dados["competencias"] == "10/07/2023 a 12/11/2025"
+    assert dados["valor_entrada"] == "2.090,00"
+    assert dados["quantidade_parcelas"] == "24"
+    assert dados["valor_parcela"] == "1.117,08"
+    assert dados["dia_parcela"] == "10"
+    assert dados["vencimento_entrada"] == "07/08/2026"
+

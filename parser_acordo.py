@@ -183,7 +183,7 @@ ROTULOS_MAP = [
         r"e-mails", r"emails", r"e-mail", r"email"
     ]),
     ("endereco", [
-        r"endere[cç]o\s+residencial", r"endere[cç]o\s+comercial", r"endere[cç]o\s+completo",
+        r"endere[cç]o\s+com\s+cep", r"endere[cç]o\s+residencial", r"endere[cç]o\s+comercial", r"endere[cç]o\s+completo",
         r"endere[cç]o", r"resid[eê]ncia", r"mora\s+na", r"mora\s+no", r"residente\s+na", r"residente\s+no"
     ]),
     ("cep", [
@@ -346,9 +346,18 @@ def extrair_emails(texto: str) -> str:
 
 
 def extrair_cep(texto: str) -> str:
-    match = re.search(r"\b(\d{2}\.?\d{3})[-]?(\d{3})\b", texto)
+    # Tenta formato explícito com separador (XX.XXX-XXX ou XXXXX-XXX)
+    match = re.search(r"\b(\d{2}\.?\d{3})[-](\d{3})\b", texto)
     if match:
         return f"{match.group(1).replace('.', '')}-{match.group(2)}"
+    # Tenta formato sem separador (8 dígitos seguidos que parecem CEP)
+    match2 = re.search(r"\b(\d{5})(\d{3})\b", texto)
+    if match2:
+        cep_candidate = f"{match2.group(1)}-{match2.group(2)}"
+        # Verificar que não é um telefone (telefones têm 10-11 dígitos)
+        contexto = texto[max(0, match2.start()-20):match2.end()+5]
+        if not re.search(r"\d{10,11}", contexto):
+            return cep_candidate
     return ""
 
 
@@ -475,8 +484,18 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     # ENDEREÇO
     if "endereco" in rotulos_dict and rotulos_dict["endereco"]:
         end_seg = rotulos_dict["endereco"]
-        end_seg = re.split(r"(?i)\s*(?:valor|d[ií]vida|d[eé]bito|compet[eê]ncias|condi[cç][aã]o|entrada|$)", end_seg)[0]
-        dados.endereco = end_seg.strip(" ,.")
+        # Cortar antes de campos conhecidos
+        end_seg = re.split(r"(?i)\s*(?:valor|d[ií]vida|d[eé]bito|compet[eê]ncias|condi[cç][aã]o|entrada|matr[ií]cula|$)", end_seg)[0]
+        # Extrair CEP de dentro do endereço (ex: 'Rua X ... Cep 69309-160')
+        cep_dentro = re.search(r"(?i)[,\.\s-]*\s*(?:cep|CEP)[:\s]*\s*(\d{2}\.?\d{3}[-]?\d{3})", end_seg)
+        if cep_dentro:
+            if not dados.cep:
+                cep_raw = cep_dentro.group(1).replace(".", "")
+                if "-" not in cep_raw:
+                    cep_raw = cep_raw[:5] + "-" + cep_raw[5:]
+                dados.cep = cep_raw
+            end_seg = end_seg[:cep_dentro.start()]
+        dados.endereco = end_seg.strip(" ,.-")
 
     if not dados.endereco:
         match_end_nat = re.search(r"(?i)\b(?:mora\s+na|mora\s+no|residente\s+na|residente\s+no|resid[eê]ncia:?|endere[cç]o:?)\s+([^.\n]+)", texto)
@@ -484,6 +503,18 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
             end_candidate = match_end_nat.group(1).strip()
             end_candidate = re.split(r"(?i)\s*(?:a\s+d[ií]vida|valor|compet[eê]ncias|entrada)", end_candidate)[0]
             dados.endereco = end_candidate.strip(" ,.")
+
+    # Se CEP veio do rótulo mas o valor contém endereço (ex: 'Rua X... Cep XXXXX-XXX'),
+    # tentar recuperar o CEP correto do texto completo se ainda não encontrado
+    if not dados.cep or len(re.sub(r'\D', '', dados.cep)) != 8:
+        # Buscar CEP explícito no texto todo (formato com hífen)
+        cep_match = re.search(r"(?i)(?:cep|CEP)[:\s]*\s*(\d{2}\.?\d{3}[-]\d{3})", texto)
+        if cep_match:
+            dados.cep = cep_match.group(1).replace('.', '')
+        else:
+            cep_match2 = re.search(r"\b(\d{5})[-](\d{3})\b", texto)
+            if cep_match2:
+                dados.cep = f"{cep_match2.group(1)}-{cep_match2.group(2)}"
 
     # VALOR ORIGINAL
     dec_original = None
