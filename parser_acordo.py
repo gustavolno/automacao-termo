@@ -159,9 +159,136 @@ def processar_competencias(texto: str) -> str:
     return partes[0].strip()
 
 
+def processar_demonstrativo(texto: str) -> dict:
+    """
+    Processa o texto completo de um Demonstrativo de Valores (colado ou extraído de PDF/TXT).
+    Extrai dados cadastrais e agrupa todas as datas de vencimento em sequências de competências.
+    """
+    res = {
+        "nome": "",
+        "cpf": "",
+        "matricula": "",
+        "valor_causa": "",
+        "competencias": "",
+        "grupos_detalhados": [],
+        "total_meses": 0
+    }
+    if not texto:
+        return res
+
+    # 1. Dados cadastrais
+    m_nome = re.search(r"(?i)Nome\s*:?\s*([^\n\r]+)", texto)
+    if m_nome:
+        res["nome"] = m_nome.group(1).strip()
+
+    m_cpf = re.search(r"\b(\d{3}\.\d{3}\.\d{3}-\d{2}|\d{11})\b", texto)
+    if m_cpf:
+        d = re.sub(r"\D", "", m_cpf.group(1))
+        if len(d) == 11:
+            res["cpf"] = f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}"
+
+    m_mat = re.search(r"(?i)Matr[ií]cula(?:\s+do\s+Titular)?\s*:?\s*([A-Z0-9]+)", texto)
+    if m_mat:
+        res["matricula"] = m_mat.group(1).strip()
+
+    m_vc = re.search(r"(?i)Valor\s+da\s+causa\s*:?\s*R?\$?\s*([\d\.,]+)", texto)
+    if m_vc:
+        vc_raw = m_vc.group(1).replace(".", "").replace(",", ".")
+        try:
+            val = Decimal(vc_raw).quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+            res["valor_causa"] = formatar_valor_brl(val)
+        except Exception:
+            pass
+
+    # 2. Datas de vencimento da tabela (linhas que contêm data dd/mm/yyyy acompanhada de valor numérico ou tipo de receita)
+    texto_tabela = texto
+    m_param = re.search(r"(?i)Par[aâ]metros\s+do\s+c[aá]lculo", texto)
+    if m_param:
+        texto_tabela = texto[:m_param.start()]
+
+    lines = texto_tabela.splitlines()
+    datas_dict = {}
+
+    for line in lines:
+        if re.search(r"(?i)Demonstrativo\s+de\s+Valores|PROJUDI|JUNTADA", line):
+            continue
+
+        # Procura datas que estejam na mesma linha que valores ou receitas da tabela
+        m_row = re.search(r"\b(\d{2})/(\d{2})/(\d{4})\b", line)
+        if m_row:
+            # Exige ter valor numérico monetário ou palavras chave de receita na linha para ser considerada vencimento da dívida
+            if not re.search(r"(?i)(?:contribui[cç][aã]o|parcelamento|vlr|\d+[\.,]\d{2})", line):
+                continue
+            dia, mes, ano = m_row.group(1), m_row.group(2), m_row.group(3)
+            d_int, m_int, a_int = int(dia), int(mes), int(ano)
+            if 1 <= d_int <= 31 and 1 <= m_int <= 12 and 2000 <= a_int <= 2099:
+                key = (a_int, m_int)
+                dt_str = f"{dia}/{mes}/{ano}"
+                dt_obj = datetime(a_int, m_int, d_int)
+                if key not in datas_dict:
+                    datas_dict[key] = {"primeira": dt_str, "ultima": dt_str, "primeira_dt": dt_obj, "ultima_dt": dt_obj}
+                else:
+                    if dt_obj < datas_dict[key]["primeira_dt"]:
+                        datas_dict[key]["primeira"] = dt_str
+                        datas_dict[key]["primeira_dt"] = dt_obj
+                    if dt_obj > datas_dict[key]["ultima_dt"]:
+                        datas_dict[key]["ultima"] = dt_str
+                        datas_dict[key]["ultima_dt"] = dt_obj
+
+    if not datas_dict:
+        return res
+
+    keys_ordenadas = sorted(datas_dict.keys())
+    res["total_meses"] = len(keys_ordenadas)
+
+    grupos = []
+    grupo_atual = [keys_ordenadas[0]]
+
+    for i in range(1, len(keys_ordenadas)):
+        curr_y, curr_m = keys_ordenadas[i]
+        prev_y, prev_m = keys_ordenadas[i-1]
+        
+        exp_y = prev_y
+        exp_m = prev_m + 1
+        if exp_m > 12:
+            exp_m = 1
+            exp_y += 1
+
+        if curr_y == exp_y and curr_m == exp_m:
+            grupo_atual.append(keys_ordenadas[i])
+        else:
+            grupos.append(grupo_atual)
+            grupo_atual = [keys_ordenadas[i]]
+    grupos.append(grupo_atual)
+
+    partes = []
+    detalhes = []
+    for g in grupos:
+        key_ini = g[0]
+        key_fim = g[-1]
+        dt_ini_str = datas_dict[key_ini]["primeira"]
+        dt_fim_str = datas_dict[key_fim]["ultima"]
+
+        if len(g) == 1:
+            partes.append(dt_ini_str)
+            detalhes.append(f"Mês único: {dt_ini_str}")
+        else:
+            partes.append(f"{dt_ini_str} a {dt_fim_str}")
+            detalhes.append(f"Período: {dt_ini_str} a {dt_fim_str} ({len(g)} meses)")
+
+    if len(partes) > 1:
+        res["competencias"] = (", ".join(partes[:-1]) + " e " + partes[-1]).strip()
+    else:
+        res["competencias"] = partes[0].strip()
+
+    res["grupos_detalhados"] = detalhes
+    return res
+
+
 # ============================================================
 # MAPA DE RÓTULOS E REGRAS DE FRONTEIRA
 # ============================================================
+
 
 ROTULOS_MAP = [
     ("nome", [

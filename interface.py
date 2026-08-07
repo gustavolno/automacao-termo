@@ -5,15 +5,17 @@ from decimal import Decimal, ROUND_HALF_UP
 from docxtpl import DocxTemplate
 from num2words import num2words
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, messagebox, scrolledtext, filedialog
 import calendar
+import pdfplumber
 
 from parser_acordo import (
     interpretar_mensagem,
     parse_valor_brl,
     formatar_valor_brl,
     calcular_valor_acordo,
-    processar_competencias
+    processar_competencias,
+    processar_demonstrativo
 )
 
 # ============================================================
@@ -165,6 +167,7 @@ CAMPOS_REVISAO = [
 ]
 
 PLACEHOLDER = "// Cole a mensagem do atendimento jurídica/acordo recebida..."
+PLACEHOLDER_DEMO = "// Anexe o PDF do Demonstrativo de Valores ou cole a tabela aqui..."
 
 
 class App(tk.Tk):
@@ -173,15 +176,16 @@ class App(tk.Tk):
         self.title("Aldrigues Cândido Advocacia — Gerador de Termos de Acordo")
         self.configure(bg=BG_MAIN)
         self.resizable(True, True)
-        self.minsize(980, 680)
+        self.minsize(1020, 700)
         self.entries = {}
         self.calc_entries = {}
+        self.demo_entries = {}
         self._build_ui()
         self.after(50, self._centralizar)
 
     def _centralizar(self):
         self.update_idletasks()
-        w, h = 1040, 740
+        w, h = 1080, 760
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
 
@@ -211,11 +215,12 @@ class App(tk.Tk):
         tabs = [
             ("gerador", "[ 01. GERADOR DE TERMOS ]"),
             ("calculadora", "[ 02. CALCULADORA DE NEGOCIAÇÃO ]"),
+            ("demonstrativo", "[ 03. DEMONSTRATIVO & COMPETÊNCIAS ]"),
         ]
 
         for key, label in tabs:
             btn = tk.Label(tabs_frame, text=label, font=FONT_MONO_BOLD,
-                           bg=BG_NAV, fg=TEXT_MUTED, cursor="hand2", padx=12, pady=14)
+                           bg=BG_NAV, fg=TEXT_MUTED, cursor="hand2", padx=10, pady=14)
             btn.pack(side="left")
             btn.bind("<Button-1>", lambda e, k=key: self._switch_tab(k))
             btn.bind("<Enter>", lambda e, b=btn, k=key: b.config(fg=ACCENT_GOLD) if k != self._active_tab else None)
@@ -228,6 +233,7 @@ class App(tk.Tk):
 
         self._build_tab_gerador()
         self._build_tab_calculadora()
+        self._build_tab_demonstrativo()
         self._switch_tab("gerador")
 
     def _switch_tab(self, key):
@@ -263,7 +269,6 @@ class App(tk.Tk):
         term_card.rowconfigure(1, weight=1)
         term_card.columnconfigure(0, weight=1)
 
-        # Header Bar do Terminal
         t_bar = tk.Frame(term_card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
         t_bar.grid(row=0, column=0, sticky="ew")
         t_bar.pack_propagate(False)
@@ -279,7 +284,6 @@ class App(tk.Tk):
 
         tk.Label(t_bar, text="mensagem_atendimento.txt", font=FONT_MONO, bg=BG_NAV, fg=TEXT_MUTED).pack(side="left", padx=8)
 
-        # Scrolled Text
         self.txt = scrolledtext.ScrolledText(
             term_card, wrap=tk.WORD, font=FONT_MONO,
             bg=BG_INPUT, fg=TEXT_DIM,
@@ -292,7 +296,6 @@ class App(tk.Tk):
         self.txt.bind("<FocusIn>", self._limpar_ph)
         self.txt.bind("<FocusOut>", self._restaurar_ph)
 
-        # Botão Interpretar
         btn_interp = tk.Button(
             term_card, text="❯ INTERPRETAR MENSAGEM",
             font=FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_GOLD,
@@ -483,7 +486,6 @@ class App(tk.Tk):
             row.pack(fill="x", pady=4)
             tk.Label(row, text=label + ":", font=FONT_MONO, bg=BG_CARD, fg=TEXT_MUTED).pack(side="left")
 
-            # Entry com readonly para permitir seleção por mouse e Ctrl+C
             ent = tk.Entry(row, font=FONT_MONO_BOLD, bg=BG_CARD, fg=color,
                            readonlybackground=BG_CARD, relief="flat", bd=0,
                            justify="right", width=18,
@@ -566,6 +568,240 @@ class App(tk.Tk):
         self._set_res("av_res_saldo", self._fmt(saldo))
 
     # ============================================================
+    # ABA 3 - DEMONSTRATIVO DE VALORES & COMPETÊNCIAS
+    # ============================================================
+    def _build_tab_demonstrativo(self):
+        tab = tk.Frame(self._content, bg=BG_MAIN)
+        self._tab_frames["demonstrativo"] = tab
+
+        grid = tk.Frame(tab, bg=BG_MAIN)
+        grid.pack(fill="both", expand=True)
+        grid.columnconfigure(0, weight=1)
+        grid.columnconfigure(1, weight=1)
+        grid.rowconfigure(0, weight=1)
+
+        # ── Card Esquerda (PDF / Texto do Demonstrativo) ──
+        d_card = tk.Frame(grid, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        d_card.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
+        d_card.rowconfigure(1, weight=1)
+        d_card.columnconfigure(0, weight=1)
+
+        d_bar = tk.Frame(d_card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        d_bar.grid(row=0, column=0, sticky="ew")
+        d_bar.pack_propagate(False)
+
+        tk.Label(d_bar, text="demonstrativo_valores.pdf / txt", font=FONT_MONO, bg=BG_NAV, fg=ACCENT_GOLD).pack(side="left", padx=12)
+
+        # Botão Anexar PDF/TXT
+        btn_anexar = tk.Button(
+            d_bar, text="📁 ANEXAR ARQUIVO (PDF/TXT)", font=FONT_MONO_BOLD,
+            bg=BORDER_COLOR, fg=ACCENT_EMERALD, activebackground=BG_CARD,
+            relief="flat", cursor="hand2", padx=10, bd=0, command=self._anexar_demonstrativo
+        )
+        btn_anexar.pack(side="right", padx=6, pady=4)
+
+        self.txt_demo = scrolledtext.ScrolledText(
+            d_card, wrap=tk.WORD, font=FONT_MONO,
+            bg=BG_INPUT, fg=TEXT_DIM,
+            insertbackground=ACCENT_GOLD, relief="flat",
+            padx=14, pady=12, bd=0,
+            selectbackground=BORDER_COLOR, selectforeground=TEXT_BRIGHT
+        )
+        self.txt_demo.grid(row=1, column=0, sticky="nsew", padx=1, pady=1)
+        self.txt_demo.insert("1.0", PLACEHOLDER_DEMO)
+        self.txt_demo.bind("<FocusIn>", self._limpar_ph_demo)
+        self.txt_demo.bind("<FocusOut>", self._restaurar_ph_demo)
+
+        btn_proc_demo = tk.Button(
+            d_card, text="❯ CALCULAR SEQUÊNCIA DE COMPETÊNCIAS",
+            font=FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_GOLD,
+            activebackground=BORDER_COLOR, activeforeground=ACCENT_GOLD_HOVER,
+            relief="flat", cursor="hand2", pady=10, bd=0,
+            command=self._processar_demo
+        )
+        btn_proc_demo.grid(row=2, column=0, sticky="ew")
+
+        # ── Card Direita (Resultado & Envio para Termos) ──
+        res_card = tk.Frame(grid, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        res_card.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
+        res_card.rowconfigure(1, weight=1)
+        res_card.columnconfigure(0, weight=1)
+
+        r_bar = tk.Frame(res_card, bg=BG_NAV, height=36, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        r_bar.grid(row=0, column=0, sticky="ew")
+        r_bar.pack_propagate(False)
+        tk.Label(r_bar, text="competencias_calculadas.json", font=FONT_MONO, bg=BG_NAV, fg=ACCENT_EMERALD).pack(side="left", padx=14)
+
+        body_res = tk.Frame(res_card, bg=BG_CARD, padx=16, pady=14)
+        body_res.grid(row=1, column=0, sticky="nsew")
+
+        # Campos Cadastrais Extraídos do Demonstrativo
+        cad_fields = [
+            ("demo_nome", "Nome do Titular"),
+            ("demo_cpf", "CPF"),
+            ("demo_matricula", "Matrícula"),
+            ("demo_valor_causa", "Valor da Causa (R$)"),
+            ("demo_total_meses", "Total de Meses/Parcelas"),
+        ]
+
+        for key, label in cad_fields:
+            rf = tk.Frame(body_res, bg=BG_CARD)
+            rf.pack(fill="x", pady=2)
+            tk.Label(rf, text=label + ":", font=FONT_MONO, bg=BG_CARD, fg=TEXT_MUTED).pack(side="left")
+            ent = tk.Entry(rf, font=FONT_MONO_BOLD, bg=BG_CARD, fg=TEXT_BRIGHT,
+                           readonlybackground=BG_CARD, relief="flat", bd=0, justify="right", width=22,
+                           highlightthickness=0, selectbackground=BORDER_COLOR)
+            ent.insert(0, "—")
+            ent.config(state="readonly")
+            ent.pack(side="right")
+            self.demo_entries[key] = ent
+
+        tk.Frame(body_res, bg=BORDER_COLOR, height=1).pack(fill="x", pady=10)
+
+        # Campo de Resultado Final das Competências
+        tk.Label(body_res, text="📌 Competências Negociadas (Formato do Termo):", font=FONT_MONO_BOLD, bg=BG_CARD, fg=ACCENT_GOLD).pack(anchor="w", pady=(0, 4))
+        
+        self.txt_comp_res = scrolledtext.ScrolledText(
+            body_res, wrap=tk.WORD, font=FONT_MONO_BOLD, height=3,
+            bg=BG_INPUT, fg=ACCENT_EMERALD, relief="flat", bd=0,
+            highlightthickness=1, highlightbackground=BORDER_COLOR,
+            selectbackground=BORDER_COLOR, selectforeground=TEXT_BRIGHT
+        )
+        self.txt_comp_res.pack(fill="x", pady=(0, 10))
+
+        tk.Label(body_res, text="📊 Detalhamento das Sequências & Lacunas:", font=FONT_MONO, bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 4))
+        
+        self.txt_detalhes_comp = scrolledtext.ScrolledText(
+            body_res, wrap=tk.WORD, font=FONT_MONO, height=5,
+            bg=BG_INPUT, fg=TEXT_BRIGHT, relief="flat", bd=0,
+            highlightthickness=1, highlightbackground=BORDER_COLOR,
+            selectbackground=BORDER_COLOR
+        )
+        self.txt_detalhes_comp.pack(fill="both", expand=True)
+
+        # Botão Enviar para Gerador de Termos
+        btn_enviar_gerador = tk.Button(
+            res_card, text="[ ⚖ ENVIAR DADOS PARA O GERADOR DE TERMOS ]",
+            font=FONT_MONO_BOLD, bg=ACCENT_GOLD, fg=BG_MAIN,
+            activebackground=ACCENT_GOLD_HOVER, activeforeground=BG_MAIN,
+            relief="flat", cursor="hand2", pady=10, bd=0,
+            command=self._enviar_demo_para_gerador
+        )
+        btn_enviar_gerador.grid(row=2, column=0, sticky="ew")
+
+    def _limpar_ph_demo(self, _e):
+        if self.txt_demo.get("1.0", "end-1c") == PLACEHOLDER_DEMO:
+            self.txt_demo.delete("1.0", "end")
+            self.txt_demo.config(fg=TEXT_BRIGHT)
+
+    def _restaurar_ph_demo(self, _e):
+        if not self.txt_demo.get("1.0", "end-1c").strip():
+            self.txt_demo.insert("1.0", PLACEHOLDER_DEMO)
+            self.txt_demo.config(fg=TEXT_DIM)
+
+    def _anexar_demonstrativo(self):
+        caminho = filedialog.askopenfilename(
+            title="Selecione o Demonstrativo",
+            filetypes=[("Arquivos suportados", "*.pdf;*.txt"), ("PDF", "*.pdf"), ("Texto", "*.txt")]
+        )
+        if not caminho:
+            return
+
+        try:
+            texto_extraido = ""
+            if caminho.lower().endswith(".pdf"):
+                with pdfplumber.open(caminho) as pdf:
+                    for page in pdf.pages:
+                        txt_pag = page.extract_text()
+                        if txt_pag:
+                            texto_extraido += txt_pag + "\n"
+            else:
+                with open(caminho, "r", encoding="utf-8", errors="ignore") as f:
+                    texto_extraido = f.read()
+
+            if texto_extraido:
+                self.txt_demo.delete("1.0", "end")
+                self.txt_demo.config(fg=TEXT_BRIGHT)
+                self.txt_demo.insert("1.0", texto_extraido)
+                self._processar_demo()
+                messagebox.showinfo("Sucesso", f"Demonstrativo carregado com sucesso!\n{os.path.basename(caminho)}")
+            else:
+                messagebox.showwarning("Aviso", "Não foi possível extrair texto do arquivo.")
+        except Exception as e:
+            messagebox.showerror("Erro ao ler arquivo", str(e))
+
+    def _set_demo_entry(self, key, val):
+        ent = self.demo_entries[key]
+        ent.config(state="normal")
+        ent.delete(0, "end")
+        ent.insert(0, val if val else "—")
+        ent.config(state="readonly")
+
+    def _processar_demo(self):
+        texto = self.txt_demo.get("1.0", "end-1c").strip()
+        if not texto or texto == PLACEHOLDER_DEMO:
+            messagebox.showwarning("Aviso", "Cole o texto ou anexe o arquivo PDF do Demonstrativo.")
+            return
+
+        res = processar_demonstrativo(texto)
+
+        self._set_demo_entry("demo_nome", res.get("nome", ""))
+        self._set_demo_entry("demo_cpf", res.get("cpf", ""))
+        self._set_demo_entry("demo_matricula", res.get("matricula", ""))
+        self._set_demo_entry("demo_valor_causa", res.get("valor_causa", ""))
+        self._set_demo_entry("demo_total_meses", str(res.get("total_meses", 0)))
+
+        self.txt_comp_res.config(state="normal")
+        self.txt_comp_res.delete("1.0", "end")
+        self.txt_comp_res.insert("1.0", res.get("competencias", ""))
+        self.txt_comp_res.config(state="normal")
+
+        self.txt_detalhes_comp.config(state="normal")
+        self.txt_detalhes_comp.delete("1.0", "end")
+        if res.get("grupos_detalhados"):
+            self.txt_detalhes_comp.insert("1.0", "\n".join(res["grupos_detalhados"]))
+        else:
+            self.txt_detalhes_comp.insert("1.0", "Nenhum período identificado.")
+
+        self.dados_demo_atual = res
+
+    def _enviar_demo_para_gerador(self):
+        if not hasattr(self, "dados_demo_atual") or not self.dados_demo_atual.get("competencias"):
+            self._processar_demo()
+            if not hasattr(self, "dados_demo_atual") or not self.dados_demo_atual.get("competencias"):
+                messagebox.showwarning("Aviso", "Processe o demonstrativo primeiro.")
+                return
+
+        res = self.dados_demo_atual
+
+        # Preenche os campos no Gerador de Termos (Aba 1)
+        if res.get("nome"):
+            self.entries["nome"].delete(0, "end")
+            self.entries["nome"].insert(0, res["nome"])
+
+        if res.get("cpf"):
+            self.entries["cpf"].delete(0, "end")
+            self.entries["cpf"].insert(0, res["cpf"])
+
+        if res.get("matricula"):
+            self.entries["matricula"].delete(0, "end")
+            self.entries["matricula"].insert(0, res["matricula"])
+
+        if res.get("valor_causa"):
+            self.entries["valor_original"].delete(0, "end")
+            self.entries["valor_original"].insert(0, res["valor_causa"])
+
+        if res.get("competencias"):
+            self.entries["competencias"].delete(0, "end")
+            self.entries["competencias"].insert(0, res["competencias"])
+
+        # Alterna para a Aba 1 Gerador
+        self._switch_tab("gerador")
+        self.status_var.set("// ✅ Dados do Demonstrativo importados para a revisão do Termo!")
+        self.status_lbl.config(fg=ACCENT_EMERALD)
+        messagebox.showinfo("Sucesso", "Dados do Demonstrativo (Nome, CPF, Matrícula, Valor e Competências) enviados com sucesso para o Gerador de Termos!")
+
+    # ============================================================
     # EVENTOS DO GERADOR
     # ============================================================
     def _limpar_ph(self, _e):
@@ -625,7 +861,7 @@ class App(tk.Tk):
             messagebox.showwarning("Aviso", "O campo 'Nome / Cliente' é obrigatório.")
             return
 
-        tipo_label = "PARCELADO" if tipo == "avista" else "À VISTA" if tipo == "avista" else "PARCELADO"
+        tipo_label = "PARCELADO" if tipo == "parcelado" else "À VISTA"
         self.status_var.set(f"// Gerando minuta de termo de acordo [{tipo_label}]...")
         self.status_lbl.config(fg=ACCENT_CYAN)
         self.btn_gerar_parcelado.config(state="disabled")
