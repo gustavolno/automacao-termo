@@ -407,7 +407,7 @@ class App(tk.Tk):
         grid.rowconfigure(0, weight=1)
 
         # ── Card Parcelado ──
-        self._build_calc_card(grid, col=0, title="// Simulação Parcelada (Campos Brancos = Editáveis)", accent_color=ACCENT_GOLD,
+        self._build_calc_card(grid, col=0, title="// Simulação Parcelada (Campos Editáveis)", accent_color=ACCENT_GOLD,
             fields=[
                 ("parc_valor_causa", "Valor da Causa (R$)"),
                 ("parc_pct_desconto", "% Desconto"),
@@ -425,7 +425,7 @@ class App(tk.Tk):
         )
 
         # ── Card À Vista ──
-        self._build_calc_card(grid, col=1, title="// Simulação À Vista (Campos Brancos = Editáveis)", accent_color=ACCENT_EMERALD,
+        self._build_calc_card(grid, col=1, title="// Simulação À Vista (Campos Editáveis)", accent_color=ACCENT_EMERALD,
             fields=[
                 ("av_valor_causa", "Valor da Causa (R$)"),
                 ("av_pct_desconto", "% Desconto"),
@@ -449,7 +449,6 @@ class App(tk.Tk):
         body = tk.Frame(card, bg=BG_CARD, padx=18, pady=16)
         body.pack(fill="both", expand=True)
 
-        # Notice indicator for editable fields
         tk.Label(body, text="📝 [ EDITÁVEIS ] Digite nos campos abaixo:", font=("Consolas", 8), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 8))
 
         for key, label in fields:
@@ -458,13 +457,11 @@ class App(tk.Tk):
             tk.Label(lbl_frame, text=label, font=FONT_MONO, bg=BG_CARD, fg=TEXT_BRIGHT).pack(side="left")
             tk.Label(lbl_frame, text=" [EDITÁVEL]", font=("Consolas", 7, "bold"), bg=BG_CARD, fg=ACCENT_GOLD).pack(side="left", padx=4)
 
-            # Input entries with distinct white-bordered highlight to emphasize editability
             ent = tk.Entry(body, font=FONT_MONO_BOLD, bg=BG_INPUT, fg="#ffffff",
                            insertbackground="#ffffff", relief="flat", bd=0,
                            highlightthickness=1, highlightbackground="#ffffff",
                            highlightcolor=accent_color)
             ent.pack(fill="x", ipady=6, pady=(2, 10))
-            # Bind real-time calculation on keypress!
             ent.bind("<KeyRelease>", lambda e: calc_cmd())
             self.calc_entries[key] = ent
 
@@ -478,16 +475,31 @@ class App(tk.Tk):
 
         tk.Frame(body, bg=BORDER_COLOR, height=1).pack(fill="x", pady=(0, 12))
 
-        tk.Label(body, text="📊 [ CALCULADOS ] Resultados automáticos:", font=("Consolas", 8), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 6))
+        tk.Label(body, text="📊 [ SELECIONÁVEIS ] Clique/arraste para copiar o valor:", font=("Consolas", 8), bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w", pady=(0, 6))
 
         self._calc_results = getattr(self, '_calc_results', {})
         for key, label, color in results:
             row = tk.Frame(body, bg=BG_CARD)
             row.pack(fill="x", pady=4)
             tk.Label(row, text=label + ":", font=FONT_MONO, bg=BG_CARD, fg=TEXT_MUTED).pack(side="left")
-            lbl = tk.Label(row, text="—", font=FONT_MONO_BOLD, bg=BG_CARD, fg=color)
-            lbl.pack(side="right")
-            self._calc_results[key] = lbl
+
+            # Entry com readonly para permitir seleção por mouse e Ctrl+C
+            ent = tk.Entry(row, font=FONT_MONO_BOLD, bg=BG_CARD, fg=color,
+                           readonlybackground=BG_CARD, relief="flat", bd=0,
+                           justify="right", width=18,
+                           highlightthickness=0,
+                           selectbackground=BORDER_COLOR, selectforeground=TEXT_BRIGHT)
+            ent.insert(0, "—")
+            ent.config(state="readonly")
+            ent.pack(side="right")
+            self._calc_results[key] = ent
+
+    def _set_res(self, key, text_val):
+        ent = self._calc_results[key]
+        ent.config(state="normal")
+        ent.delete(0, "end")
+        ent.insert(0, text_val)
+        ent.config(state="readonly")
 
     # ── Lógica Calculadora ──
     def _parse_input(self, text):
@@ -515,11 +527,8 @@ class App(tk.Tk):
         n_parc = self._parse_input(self.calc_entries["parc_num_parcelas"].get())
 
         if vc is None or pct_d is None:
-            self._calc_results["parc_res_desconto"].config(text="—")
-            self._calc_results["parc_res_saldo_desc"].config(text="—")
-            self._calc_results["parc_res_entrada"].config(text="—")
-            self._calc_results["parc_res_saldo_rest"].config(text="—")
-            self._calc_results["parc_res_parcela"].config(text="—")
+            for k in ["parc_res_desconto", "parc_res_saldo_desc", "parc_res_entrada", "parc_res_saldo_rest", "parc_res_parcela"]:
+                self._set_res(k, "—")
             return
 
         desc_valor = (vc * pct_d / Decimal("100")).quantize(Decimal("0.01"))
@@ -535,26 +544,26 @@ class App(tk.Tk):
         if n_parc is not None and n_parc > 0:
             parcela = (saldo_rest / n_parc).quantize(Decimal("0.01"))
 
-        self._calc_results["parc_res_desconto"].config(text=self._fmt(desc_valor))
-        self._calc_results["parc_res_saldo_desc"].config(text=self._fmt(saldo_desc))
-        self._calc_results["parc_res_entrada"].config(text=self._fmt(entrada_valor))
-        self._calc_results["parc_res_saldo_rest"].config(text=self._fmt(saldo_rest))
-        self._calc_results["parc_res_parcela"].config(text=self._fmt(parcela))
+        self._set_res("parc_res_desconto", self._fmt(desc_valor))
+        self._set_res("parc_res_saldo_desc", self._fmt(saldo_desc))
+        self._set_res("parc_res_entrada", self._fmt(entrada_valor))
+        self._set_res("parc_res_saldo_rest", self._fmt(saldo_rest))
+        self._set_res("parc_res_parcela", self._fmt(parcela))
 
     def _calcular_avista(self):
         vc = self._parse_input(self.calc_entries["av_valor_causa"].get())
         pct_d = self._parse_input(self.calc_entries["av_pct_desconto"].get())
 
         if vc is None or pct_d is None:
-            self._calc_results["av_res_desconto"].config(text="—")
-            self._calc_results["av_res_saldo"].config(text="—")
+            self._set_res("av_res_desconto", "—")
+            self._set_res("av_res_saldo", "—")
             return
 
         desc_valor = (vc * pct_d / Decimal("100")).quantize(Decimal("0.01"))
         saldo = vc - desc_valor
 
-        self._calc_results["av_res_desconto"].config(text=self._fmt(desc_valor))
-        self._calc_results["av_res_saldo"].config(text=self._fmt(saldo))
+        self._set_res("av_res_desconto", self._fmt(desc_valor))
+        self._set_res("av_res_saldo", self._fmt(saldo))
 
     # ============================================================
     # EVENTOS DO GERADOR
@@ -616,7 +625,7 @@ class App(tk.Tk):
             messagebox.showwarning("Aviso", "O campo 'Nome / Cliente' é obrigatório.")
             return
 
-        tipo_label = "PARCELADO" if tipo == "parcelado" else "À VISTA"
+        tipo_label = "PARCELADO" if tipo == "avista" else "À VISTA" if tipo == "avista" else "PARCELADO"
         self.status_var.set(f"// Gerando minuta de termo de acordo [{tipo_label}]...")
         self.status_lbl.config(fg=ACCENT_CYAN)
         self.btn_gerar_parcelado.config(state="disabled")
