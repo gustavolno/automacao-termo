@@ -254,7 +254,6 @@ class App(tk.Tk):
 
         self._build_tab_gerador()
         self._build_tab_demonstrativo()
-        self._build_tab_calculadora()
         self._switch_tab("gerador")
 
     def _switch_tab(self, key):
