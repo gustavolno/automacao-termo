@@ -31,7 +31,6 @@ PASTA_SAIDA = "Termos Gerados"
 def aplicar_tema_titulo_escuro(window):
     """
     Aplica o tema escuro nativo na barra de título do Windows (Windows 10/11 DWM).
-    Remove a barra de título branca padrão.
     """
     try:
         window.update_idletasks()
@@ -39,9 +38,7 @@ def aplicar_tema_titulo_escuro(window):
         if not hwnd:
             hwnd = window.winfo_id()
         value = ctypes.c_int(1)
-        # Windows 10 (build 19041+) e Windows 11
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
-        # Versões anteriores do Windows 10
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(value), ctypes.sizeof(value))
     except Exception:
         pass
@@ -237,7 +234,7 @@ class App(tk.Tk):
         tabs_frame = tk.Frame(navbar, bg=BG_NAV)
         tabs_frame.pack(side="right", padx=16)
 
-        # Botão opcional para abrir a Calculadora em Janela Flutuante Separada
+        # Botão para abrir a Calculadora Inteligente em Janela Flutuante
         btn_calc_pop = tk.Button(
             tabs_frame, text="🧮 Simular Acordo", font=FONT_UI_BOLD,
             bg=BG_CARD, fg=ACCENT_GOLD, activebackground=BORDER_COLOR,
@@ -249,6 +246,7 @@ class App(tk.Tk):
         tabs = [
             ("gerador", "📄 01. GERADOR DE TERMOS"),
             ("demonstrativo", "📊 02. DEMONSTRATIVO & COMPETÊNCIAS"),
+            ("calculadora_aba", "🧮 03. CALCULADORA DE ACORDO"),
         ]
 
         for key, label in reversed(tabs):
@@ -266,6 +264,7 @@ class App(tk.Tk):
 
         self._build_tab_gerador()
         self._build_tab_demonstrativo()
+        self._build_tab_calculadora()
         self._switch_tab("gerador")
 
     def _switch_tab(self, key):
@@ -540,6 +539,242 @@ class App(tk.Tk):
         )
         btn_enviar_gerador.grid(row=2, column=0, sticky="ew")
 
+    # ============================================================
+    # ABA 3 - CALCULADORA DINÂMICA DE NEGOCIAÇÃO (BIDIRECIONAL)
+    # ============================================================
+    def _build_tab_calculadora(self):
+        tab = tk.Frame(self._content, bg=BG_MAIN)
+        self._tab_frames["calculadora_aba"] = tab
+        self._montar_widget_calculadora(tab)
+
+    def _montar_widget_calculadora(self, parent_container, is_popup=False, on_send_callback=None):
+        """
+        Monta o painel da Calculadora Bidirecional Inteligente.
+        Funciona perfeitamente tanto dentro de uma Aba quanto numa Janela Flutuante (Toplevel).
+        """
+        card = tk.Frame(parent_container, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        card.pack(fill="both", expand=True)
+
+        c_bar = tk.Frame(card, bg=BG_NAV, height=44, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        c_bar.pack(fill="x")
+        c_bar.pack_propagate(False)
+
+        tk.Label(c_bar, text="🧮  SIMULADOR DINÂMICO DE NEGOCIAÇÃO DE ACORDO", font=FONT_UI_TITLE, bg=BG_NAV, fg=ACCENT_GOLD).pack(side="left", padx=16)
+
+        body = tk.Frame(card, bg=BG_CARD, padx=24, pady=20)
+        body.pack(fill="both", expand=True)
+
+        grid_calc = tk.Frame(body, bg=BG_CARD)
+        grid_calc.pack(fill="x", pady=(0, 14))
+        grid_calc.columnconfigure(0, weight=1)
+        grid_calc.columnconfigure(1, weight=1)
+
+        # ── Coluna Esquerda: Valor Original & Acordo ──
+        col_left = tk.Frame(grid_calc, bg=BG_CARD)
+        col_left.grid(row=0, column=0, sticky="nsew", padx=(0, 16))
+
+        tk.Label(col_left, text="💵 Valor Original da Causa (R$):", font=FONT_UI_BOLD, bg=BG_CARD, fg=TEXT_BRIGHT).pack(anchor="w", pady=(0, 2))
+        ent_vc = tk.Entry(col_left, font=FONT_MONO_BOLD, bg=BG_INPUT, fg=TEXT_BRIGHT, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        ent_vc.pack(fill="x", ipady=6, pady=(0, 12))
+
+        tk.Label(col_left, text="🏷️ % Desconto Aplicado:", font=FONT_UI_BOLD, bg=BG_CARD, fg=ACCENT_GOLD).pack(anchor="w", pady=(0, 2))
+        ent_pct_desc = tk.Entry(col_left, font=FONT_MONO_BOLD, bg=BG_INPUT, fg=ACCENT_GOLD, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        ent_pct_desc.pack(fill="x", ipady=6, pady=(0, 12))
+
+        tk.Label(col_left, text="💲 Valor do Acordo em Reais (R$):", font=FONT_UI_BOLD, bg=BG_CARD, fg=ACCENT_EMERALD).pack(anchor="w", pady=(0, 2))
+        ent_va_reais = tk.Entry(col_left, font=FONT_MONO_BOLD, bg=BG_INPUT, fg=ACCENT_EMERALD, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        ent_va_reais.pack(fill="x", ipady=6, pady=(0, 12))
+
+        # ── Coluna Direita: Entrada & Parcelamento ──
+        col_right = tk.Frame(grid_calc, bg=BG_CARD)
+        col_right.grid(row=0, column=1, sticky="nsew", padx=(16, 0))
+
+        tk.Label(col_right, text="📊 % Valor da Entrada:", font=FONT_UI_BOLD, bg=BG_CARD, fg=ACCENT_CYAN).pack(anchor="w", pady=(0, 2))
+        ent_pct_ent = tk.Entry(col_right, font=FONT_MONO_BOLD, bg=BG_INPUT, fg=ACCENT_CYAN, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        ent_pct_ent.pack(fill="x", ipady=6, pady=(0, 12))
+
+        tk.Label(col_right, text="💰 Valor da Entrada em Reais (R$):", font=FONT_UI_BOLD, bg=BG_CARD, fg=ACCENT_EMERALD).pack(anchor="w", pady=(0, 2))
+        ent_ve_reais = tk.Entry(col_right, font=FONT_MONO_BOLD, bg=BG_INPUT, fg=ACCENT_EMERALD, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        ent_ve_reais.pack(fill="x", ipady=6, pady=(0, 12))
+
+        tk.Label(col_right, text="🔢 Quantidade de Parcelas (Nº):", font=FONT_UI_BOLD, bg=BG_CARD, fg=TEXT_BRIGHT).pack(anchor="w", pady=(0, 2))
+        ent_qp = tk.Entry(col_right, font=FONT_MONO_BOLD, bg=BG_INPUT, fg=TEXT_BRIGHT, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        ent_qp.pack(fill="x", ipady=6, pady=(0, 12))
+
+        # ── Resumo de Resultados Calculados ──
+        res_panel = tk.Frame(body, bg=BG_NAV, padx=16, pady=12, highlightthickness=1, highlightbackground=BORDER_COLOR)
+        res_panel.pack(fill="x", pady=(4, 16))
+
+        r_grid = tk.Frame(res_panel, bg=BG_NAV)
+        r_grid.pack(fill="x")
+        r_grid.columnconfigure(0, weight=1)
+        r_grid.columnconfigure(1, weight=1)
+        r_grid.columnconfigure(2, weight=1)
+        r_grid.columnconfigure(3, weight=1)
+
+        # Item 1: Valor de Desconto
+        tk.Label(r_grid, text="Valor de Desconto:", font=FONT_UI, bg=BG_NAV, fg=TEXT_MUTED).grid(row=0, column=0, sticky="w")
+        lbl_v_desconto = tk.Label(r_grid, text="R$ 0,00", font=FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_GOLD)
+        lbl_v_desconto.grid(row=1, column=0, sticky="w", pady=(0, 4))
+
+        # Item 2: Saldo Restante
+        tk.Label(r_grid, text="Saldo Restante (pós Entrada):", font=FONT_UI, bg=BG_NAV, fg=TEXT_MUTED).grid(row=0, column=1, sticky="w")
+        lbl_saldo_rest = tk.Label(r_grid, text="R$ 0,00", font=FONT_NAV if hasattr(self, 'FONT_NAV') else FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_PINK)
+        lbl_saldo_rest.grid(row=1, column=1, sticky="w", pady=(0, 4))
+
+        # Item 3: Parcela Mensal
+        tk.Label(r_grid, text="Valor da Parcela Mensal:", font=FONT_UI, bg=BG_NAV, fg=TEXT_MUTED).grid(row=0, column=2, sticky="w")
+        lbl_v_parcela = tk.Label(r_grid, text="R$ 0,00", font=FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_EMERALD)
+        lbl_v_parcela.grid(row=1, column=2, sticky="w", pady=(0, 4))
+
+        # Item 4: Quitação À Vista
+        tk.Label(r_grid, text="Quitação À Vista:", font=FONT_UI, bg=BG_NAV, fg=TEXT_MUTED).grid(row=0, column=3, sticky="w")
+        lbl_v_avista = tk.Label(r_grid, text="R$ 0,00", font=FONT_MONO_BOLD, bg=BG_NAV, fg=ACCENT_CYAN)
+        lbl_v_avista.grid(row=1, column=3, sticky="w", pady=(0, 4))
+
+        # ── Lógica de Cálculo Bidirecional em Tempo Real ──
+        self._calc_state = {"updating": False}
+
+        def _parse_num(txt):
+            if not txt: return None
+            t = txt.strip().replace("R$", "").replace("%", "").replace(" ", "")
+            if not t: return None
+            if "," in t and "." in t: t = t.replace(".", "").replace(",", ".")
+            elif "," in t: t = t.replace(",", ".")
+            try: return Decimal(t)
+            except Exception: return None
+
+        def _recalcular(origem):
+            if self._calc_state["updating"]:
+                return
+            self._calc_state["updating"] = True
+
+            try:
+                vc = _parse_num(ent_vc.get())
+                if vc is None or vc <= 0:
+                    lbl_v_desconto.config(text="R$ 0,00")
+                    lbl_saldo_rest.config(text="R$ 0,00")
+                    lbl_v_parcela.config(text="R$ 0,00")
+                    lbl_v_avista.config(text="R$ 0,00")
+                    return
+
+                # 1. Ajuste do Valor do Acordo & % Desconto
+                if origem == "va_reais":
+                    va = _parse_num(ent_va_reais.get())
+                    if va is not None and va >= 0:
+                        pct_d = ((vc - va) / vc * Decimal("100")).quantize(Decimal("0.01"))
+                        ent_pct_desc.delete(0, "end")
+                        ent_pct_desc.insert(0, f"{pct_d}")
+                    else:
+                        va = vc
+                elif origem == "pct_desc":
+                    pct_d = _parse_num(ent_pct_desc.get()) or Decimal("0")
+                    va = (vc * (Decimal("100") - pct_d) / Decimal("100")).quantize(Decimal("0.01"))
+                    ent_va_reais.delete(0, "end")
+                    ent_va_reais.insert(0, formatar_valor_brl(va))
+                else:
+                    va = _parse_num(ent_va_reais.get())
+                    if va is None:
+                        pct_d = _parse_num(ent_pct_desc.get()) or Decimal("0")
+                        va = (vc * (Decimal("100") - pct_d) / Decimal("100")).quantize(Decimal("0.01"))
+                        ent_va_reais.delete(0, "end")
+                        ent_va_reais.insert(0, formatar_valor_brl(va))
+
+                # 2. Ajuste da Entrada em R$ & % Entrada
+                if origem == "ve_reais":
+                    ve = _parse_num(ent_ve_reais.get())
+                    if ve is not None and va > 0:
+                        pct_e = (ve / va * Decimal("100")).quantize(Decimal("0.01"))
+                        ent_pct_ent.delete(0, "end")
+                        ent_pct_ent.insert(0, f"{pct_e}")
+                    else:
+                        ve = Decimal("0")
+                elif origem == "pct_ent":
+                    pct_e = _parse_num(ent_pct_ent.get()) or Decimal("0")
+                    ve = (va * pct_e / Decimal("100")).quantize(Decimal("0.01"))
+                    ent_ve_reais.delete(0, "end")
+                    ent_ve_reais.insert(0, formatar_valor_brl(ve))
+                else:
+                    ve = _parse_num(ent_ve_reais.get())
+                    if ve is None:
+                        pct_e = _parse_num(ent_pct_ent.get()) or Decimal("0")
+                        ve = (va * pct_e / Decimal("100")).quantize(Decimal("0.01"))
+                        ent_ve_reais.delete(0, "end")
+                        ent_ve_reais.insert(0, formatar_valor_brl(ve))
+
+                # 3. Saldo Restante Pós Entrada
+                saldo_restante = max(Decimal("0"), va - ve)
+                v_desconto = vc - va
+
+                # 4. Parcelas
+                qp = _parse_num(ent_qp.get())
+                try:
+                    qp_int = int(qp) if qp else 0
+                except Exception:
+                    qp_int = 0
+
+                vp = Decimal("0")
+                if qp_int > 0 and saldo_restante > 0:
+                    vp = (saldo_restante / Decimal(qp_int)).quantize(Decimal("0.01"))
+
+                # Atualiza Labels de Resumo
+                lbl_v_desconto.config(text=f"R$ {formatar_valor_brl(v_desconto)}")
+                lbl_saldo_rest.config(text=f"R$ {formatar_valor_brl(saldo_restante)}")
+                lbl_v_parcela.config(text=f"R$ {formatar_valor_brl(vp)}")
+                lbl_v_avista.config(text=f"R$ {formatar_valor_brl(va)}")
+
+            finally:
+                self._calc_state["updating"] = False
+
+        ent_vc.bind("<KeyRelease>", lambda e: _recalcular("vc"))
+        ent_pct_desc.bind("<KeyRelease>", lambda e: _recalcular("pct_desc"))
+        ent_va_reais.bind("<KeyRelease>", lambda e: _recalcular("va_reais"))
+        ent_pct_ent.bind("<KeyRelease>", lambda e: _recalcular("pct_ent"))
+        ent_ve_reais.bind("<KeyRelease>", lambda e: _recalcular("ve_reais"))
+        ent_qp.bind("<KeyRelease>", lambda e: _recalcular("qp"))
+
+        # Botão Enviar Simulação para o Gerador de Termos
+        def _enviar_simulacao_para_termo():
+            vc = ent_vc.get().strip()
+            va = ent_va_reais.get().strip()
+            ve = ent_ve_reais.get().strip()
+            qp = ent_qp.get().strip()
+            vp = lbl_v_parcela.cget("text").replace("R$", "").strip()
+
+            if vc:
+                self.entries["valor_original"].delete(0, "end")
+                self.entries["valor_original"].insert(0, vc)
+
+            if va:
+                self.entries["valor_acordo"].delete(0, "end")
+                self.entries["valor_acordo"].insert(0, va)
+
+            if ve:
+                self.entries["valor_entrada"].delete(0, "end")
+                self.entries["valor_entrada"].insert(0, ve)
+
+            if qp:
+                self.entries["quantidade_parcelas"].delete(0, "end")
+                self.entries["quantidade_parcelas"].insert(0, qp)
+
+            if vp and vp != "0,00":
+                self.entries["valor_parcela"].delete(0, "end")
+                self.entries["valor_parcela"].insert(0, vp)
+
+            self._switch_tab("gerador")
+            self.status_var.set("✅ Simulação enviada para os campos do Termo de Acordo!")
+            self.status_lbl.config(fg=ACCENT_EMERALD)
+            messagebox.showinfo("Sucesso", "Valores simulados (Original, Acordo, Entrada, Qtd. Parcelas e Valor Parcela) aplicados com sucesso no Gerador de Termos!")
+
+        btn_enviar_sim = tk.Button(
+            body, text="⚖  ENVIAR SIMULAÇÃO PARA O GERADOR DE TERMOS",
+            font=FONT_UI_BOLD, bg=ACCENT_GOLD, fg=BG_MAIN,
+            activebackground=ACCENT_GOLD_HOVER, activeforeground=BG_MAIN,
+            relief="flat", cursor="hand2", pady=12, bd=0,
+            command=_enviar_simulacao_para_termo
+        )
+        btn_enviar_sim.pack(fill="x")
+
     def _limpar_ph_demo(self, _e):
         if self.txt_demo.get("1.0", "end-1c") == PLACEHOLDER_DEMO:
             self.txt_demo.delete("1.0", "end")
@@ -657,129 +892,13 @@ class App(tk.Tk):
         win_calc = tk.Toplevel(self)
         win_calc.title("Aldrigues Cândido Advocacia — Simulação de Acordo")
         win_calc.configure(bg=BG_MAIN)
-        win_calc.geometry("900x600")
+        win_calc.geometry("960x650")
         win_calc.resizable(True, True)
         
         # Aplica a barra de título escura nativa no Windows
         aplicar_tema_titulo_escuro(win_calc)
 
-        header_c = tk.Frame(win_calc, bg=BG_NAV, height=48, highlightthickness=1, highlightbackground=BORDER_COLOR)
-        header_c.pack(fill="x")
-        header_c.pack_propagate(False)
-        tk.Label(header_c, text="🧮  SIMULADOR E CALCULADORA DE NEGOCIAÇÃO", font=FONT_UI_TITLE, bg=BG_NAV, fg=ACCENT_GOLD).pack(side="left", padx=16)
-
-        body = tk.Frame(win_calc, bg=BG_MAIN, padx=16, pady=16)
-        body.pack(fill="both", expand=True)
-        body.columnconfigure(0, weight=1)
-        body.columnconfigure(1, weight=1)
-        body.rowconfigure(0, weight=1)
-
-        calc_entries = {}
-        calc_results = {}
-
-        def _parse(txt):
-            t = txt.strip().replace("R$", "").replace("%", "").replace(" ", "")
-            if not t: return None
-            if "," in t and "." in t: t = t.replace(".", "").replace(",", ".")
-            elif "," in t: t = t.replace(",", ".")
-            try: return Decimal(t)
-            except Exception: return None
-
-        def _fmt(val):
-            if val is None: return "—"
-            return "R$ " + formatar_valor_brl(val.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP))
-
-        def _set_r(k, v):
-            ent = calc_results[k]
-            ent.config(state="normal")
-            ent.delete(0, "end")
-            ent.insert(0, v)
-            ent.config(state="readonly")
-
-        def _calc_p():
-            vc = _parse(calc_entries["parc_valor_causa"].get())
-            pct_d = _parse(calc_entries["parc_pct_desconto"].get())
-            pct_e = _parse(calc_entries["parc_pct_entrada"].get())
-            n_parc = _parse(calc_entries["parc_num_parcelas"].get())
-            if vc is None or pct_d is None:
-                for k in ["parc_res_desconto", "parc_res_saldo_desc", "parc_res_entrada", "parc_res_saldo_rest", "parc_res_parcela"]:
-                    _set_r(k, "—")
-                return
-            desc_valor = (vc * pct_d / Decimal("100")).quantize(Decimal("0.01"))
-            saldo_desc = vc - desc_valor
-            entrada_valor = Decimal("0")
-            saldo_rest = saldo_desc
-            if pct_e is not None and pct_e > 0:
-                entrada_valor = (saldo_desc * pct_e / Decimal("100")).quantize(Decimal("0.01"))
-                saldo_rest = saldo_desc - entrada_valor
-            parcela = Decimal("0")
-            if n_parc is not None and n_parc > 0:
-                parcela = (saldo_rest / n_parc).quantize(Decimal("0.01"))
-            _set_r("parc_res_desconto", _fmt(desc_valor))
-            _set_r("parc_res_saldo_desc", _fmt(saldo_desc))
-            _set_r("parc_res_entrada", _fmt(entrada_valor))
-            _set_r("parc_res_saldo_rest", _fmt(saldo_rest))
-            _set_r("parc_res_parcela", _fmt(parcela))
-
-        def _calc_a():
-            vc = _parse(calc_entries["av_valor_causa"].get())
-            pct_d = _parse(calc_entries["av_pct_desconto"].get())
-            if vc is None or pct_d is None:
-                _set_r("av_res_desconto", "—")
-                _set_r("av_res_saldo", "—")
-                return
-            desc_valor = (vc * pct_d / Decimal("100")).quantize(Decimal("0.01"))
-            saldo = vc - desc_valor
-            _set_r("av_res_desconto", _fmt(desc_valor))
-            _set_r("av_res_saldo", _fmt(saldo))
-
-        # Card Parcelado
-        card_p = tk.Frame(body, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR, padx=14, pady=14)
-        card_p.grid(row=0, column=0, sticky="nsew", padx=(0, 8))
-        tk.Label(card_p, text="Simulação Parcelada", font=FONT_UI_TITLE, bg=BG_CARD, fg=ACCENT_GOLD).pack(anchor="w", pady=(0, 10))
-
-        p_fields = [("parc_valor_causa", "Valor da Causa (R$)"), ("parc_pct_desconto", "% Desconto"), ("parc_pct_entrada", "% Entrada"), ("parc_num_parcelas", "Parcelas (Nº)")]
-        for k, lbl in p_fields:
-            tk.Label(card_p, text=lbl, font=FONT_UI, bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w")
-            e = tk.Entry(card_p, font=FONT_UI_BOLD, bg=BG_INPUT, fg=TEXT_BRIGHT, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
-            e.pack(fill="x", ipady=4, pady=(2, 8))
-            e.bind("<KeyRelease>", lambda evt: _calc_p())
-            calc_entries[k] = e
-
-        p_results = [("parc_res_desconto", "Valor de Desconto", ACCENT_GOLD), ("parc_res_saldo_desc", "Saldo (Pós Desconto)", ACCENT_CYAN), ("parc_res_entrada", "Valor de Entrada", ACCENT_EMERALD), ("parc_res_saldo_rest", "Saldo (Pós Entrada)", ACCENT_PINK), ("parc_res_parcela", "Parcela Mensal", ACCENT_EMERALD)]
-        for k, lbl, col in p_results:
-            rf = tk.Frame(card_p, bg=BG_CARD)
-            rf.pack(fill="x", pady=2)
-            tk.Label(rf, text=lbl + ":", font=FONT_UI, bg=BG_CARD, fg=TEXT_MUTED).pack(side="left")
-            re_ent = tk.Entry(rf, font=FONT_UI_BOLD, bg=BG_CARD, fg=col, readonlybackground=BG_CARD, relief="flat", bd=0, justify="right", width=18, highlightthickness=0, selectbackground=BORDER_COLOR)
-            re_ent.insert(0, "—")
-            re_ent.config(state="readonly")
-            re_ent.pack(side="right")
-            calc_results[k] = re_ent
-
-        # Card À Vista
-        card_a = tk.Frame(body, bg=BG_CARD, highlightthickness=1, highlightbackground=BORDER_COLOR, padx=14, pady=14)
-        card_a.grid(row=0, column=1, sticky="nsew", padx=(8, 0))
-        tk.Label(card_a, text="Simulação À Vista", font=FONT_UI_TITLE, bg=BG_CARD, fg=ACCENT_EMERALD).pack(anchor="w", pady=(0, 10))
-
-        a_fields = [("av_valor_causa", "Valor da Causa (R$)"), ("av_pct_desconto", "% Desconto")]
-        for k, lbl in a_fields:
-            tk.Label(card_a, text=lbl, font=FONT_UI, bg=BG_CARD, fg=TEXT_MUTED).pack(anchor="w")
-            e = tk.Entry(card_a, font=FONT_UI_BOLD, bg=BG_INPUT, fg=TEXT_BRIGHT, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR)
-            e.pack(fill="x", ipady=4, pady=(2, 8))
-            e.bind("<KeyRelease>", lambda evt: _calc_a())
-            calc_entries[k] = e
-
-        a_results = [("av_res_desconto", "Valor de Desconto", ACCENT_GOLD), ("av_res_saldo", "Saldo Restante (Quitação)", ACCENT_EMERALD)]
-        for k, lbl, col in a_results:
-            rf = tk.Frame(card_a, bg=BG_CARD)
-            rf.pack(fill="x", pady=2)
-            tk.Label(rf, text=lbl + ":", font=FONT_UI, bg=BG_CARD, fg=TEXT_MUTED).pack(side="left")
-            re_ent = tk.Entry(rf, font=FONT_UI_BOLD, bg=BG_CARD, fg=col, readonlybackground=BG_CARD, relief="flat", bd=0, justify="right", width=18, highlightthickness=0, selectbackground=BORDER_COLOR)
-            re_ent.insert(0, "—")
-            re_ent.config(state="readonly")
-            re_ent.pack(side="right")
-            calc_results[k] = re_ent
+        self._montar_widget_calculadora(win_calc, is_popup=True)
 
     # ============================================================
     # EVENTOS DO GERADOR DE TERMOS
