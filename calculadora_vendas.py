@@ -19,6 +19,9 @@ ACCENT_GOLD_HOVER = "#E5C170"
 ACCENT_EMERALD = "#10B981" # Legal Mint Green (À Vista & Success)
 ACCENT_CYAN = "#38BDF8"    # Executive Sky Blue
 ACCENT_PINK = "#F43F5E"    # Elegant Rose
+ACCENT_RED = "#EF4444"     # Alert Red
+ACCENT_PURPLE = "#A855F7"  # Vibrant Purple
+ACCENT_ORANGE = "#F97316"  # Orange
 
 TEXT_BRIGHT = "#F8FAFC"    # Crisp White Primary Text
 TEXT_MUTED = "#94A3B8"     # Soft Slate Text
@@ -206,9 +209,9 @@ class CalculadoraVendas(tk.Tk):
             ("saldo_desc", "Total atualizado / Subtotal", ACCENT_CYAN),
             ("ve_res", "Valor da entrada", ACCENT_EMERALD),
             ("saldo", "Saldo restante", ACCENT_PINK),
-            ("vp", "Valor da parcela", ACCENT_EMERALD),
-            ("hon", "Honorários 10%", ACCENT_GOLD),
-            ("geap", "Valor GEAP", ACCENT_EMERALD),
+            ("vp", "Valor da parcela", ACCENT_PURPLE),
+            ("hon", "🔴 Honorários 10%", ACCENT_RED),
+            ("geap", "Valor GEAP", ACCENT_ORANGE),
         ]
 
         for i, (chave, titulo, cor) in enumerate(resultados):
