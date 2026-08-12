@@ -120,7 +120,7 @@ class CalculadoraVendas(tk.Tk):
         tk.Label(i_body, text="Valor da causa (R$):", font=FONT_UI_BOLD, bg=BG_CARD, fg=TEXT_BRIGHT).pack(anchor="w", pady=(0, 3))
         ent_vc = tk.Entry(i_body, font=FONT_NUM, bg=BG_INPUT, fg=TEXT_BRIGHT, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_GOLD)
         ent_vc.pack(fill="x", ipady=6, pady=(0, 14))
-        ent_vc.bind("<KeyRelease>", lambda e: self._recalcular("vc"))
+        ent_vc.bind("<KeyRelease>", lambda e: self._aplicar_mascara_moeda(e, ent_vc, "vc"))
         self.calc_entries["vo"] = ent_vc
 
         # 2. Valor negociado (R$) + Desconto (%) LADO A LADO
@@ -134,7 +134,7 @@ class CalculadoraVendas(tk.Tk):
 
         ent_va = tk.Entry(row1, font=FONT_NUM, bg=BG_INPUT, fg=ACCENT_EMERALD, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_EMERALD)
         ent_va.pack(side="left", fill="x", expand=True, ipady=6, padx=(0, 8))
-        ent_va.bind("<KeyRelease>", lambda e: self._recalcular("va_reais"))
+        ent_va.bind("<KeyRelease>", lambda e: self._aplicar_mascara_moeda(e, ent_va, "va_reais"))
         self.calc_entries["va"] = ent_va
 
         ent_desc = tk.Entry(row1, font=FONT_NUM, bg=BG_INPUT, fg=ACCENT_GOLD, justify="center", width=8, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_GOLD)
@@ -153,7 +153,7 @@ class CalculadoraVendas(tk.Tk):
 
         ent_ve = tk.Entry(row2, font=FONT_NUM, bg=BG_INPUT, fg=ACCENT_EMERALD, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_EMERALD)
         ent_ve.pack(side="left", fill="x", expand=True, ipady=6, padx=(0, 8))
-        ent_ve.bind("<KeyRelease>", lambda e: self._recalcular("ve_reais"))
+        ent_ve.bind("<KeyRelease>", lambda e: self._aplicar_mascara_moeda(e, ent_ve, "ve_reais"))
         self.calc_entries["ve"] = ent_ve
 
         ent_pct_ent = tk.Entry(row2, font=FONT_NUM, bg=BG_INPUT, fg=ACCENT_CYAN, justify="center", width=8, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_CYAN)
@@ -177,7 +177,7 @@ class CalculadoraVendas(tk.Tk):
 
         ent_vp = tk.Entry(row3, font=FONT_NUM, bg=BG_INPUT, fg=ACCENT_CYAN, insertbackground=ACCENT_GOLD, relief="flat", bd=0, highlightthickness=1, highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_CYAN)
         ent_vp.pack(side="right", fill="x", expand=True, ipady=6)
-        ent_vp.bind("<KeyRelease>", lambda e: self._recalcular("vp_input"))
+        ent_vp.bind("<KeyRelease>", lambda e: self._aplicar_mascara_moeda(e, ent_vp, "vp_input"))
         self.calc_entries["vp_input"] = ent_vp
 
         # ── PAINEL DIREITO: DEMONSTRATIVO DE VALORES (PLANILHA) ──
@@ -236,6 +236,31 @@ class CalculadoraVendas(tk.Tk):
         btn_reset.pack(fill="x")
         btn_reset.bind("<Enter>", lambda e: btn_reset.config(bg=BORDER_COLOR, fg=TEXT_BRIGHT))
         btn_reset.bind("<Leave>", lambda e: btn_reset.config(bg=BG_CARD, fg=TEXT_MUTED))
+
+    def _aplicar_mascara_moeda(self, event, widget, origem):
+        if event.keysym in ('Left', 'Right', 'Up', 'Down', 'Tab'):
+            return
+        
+        texto = widget.get()
+        if not texto:
+            self._recalcular(origem)
+            return
+
+        # Pega apenas números
+        numeros = re.sub(r'\D', '', texto)
+        
+        if not numeros:
+            widget.delete(0, tk.END)
+        else:
+            # Converte para decimal movendo a vírgula 2 casas (ex: 211047 -> 2110.47)
+            valor = Decimal(numeros) / Decimal("100")
+            formatado = formatar_brl(valor)
+            
+            # Atualiza no Entry evitando loop
+            widget.delete(0, tk.END)
+            widget.insert(0, formatado)
+            
+        self._recalcular(origem)
 
     def _parse_num(self, txt):
         if not txt: return None
