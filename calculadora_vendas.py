@@ -3,6 +3,7 @@ import ctypes
 import tkinter as tk
 from tkinter import ttk, messagebox
 from decimal import Decimal, ROUND_HALF_UP
+from logo_b64 import LOGO_B64
 
 # ============================================================
 # DESIGN SYSTEM — ALDRIGUES CÂNDIDO ADVOCACIA (EXECUTIVE LAW FIRM)
@@ -67,6 +68,12 @@ class CalculadoraVendas(tk.Tk):
         
         # Aplica a barra de título escura nativa no Windows
         aplicar_tema_titulo_escuro(self)
+        
+        try:
+            img = tk.PhotoImage(data=LOGO_B64)
+            self.iconphoto(False, img)
+        except Exception:
+            pass
         
         self.calc_entries = {}
         self._calc_state = {"updating": False}

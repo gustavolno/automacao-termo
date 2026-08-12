@@ -20,6 +20,7 @@ from parser_acordo import (
     processar_competencias,
     processar_demonstrativo
 )
+from logo_b64 import LOGO_B64
 
 # ============================================================
 # CONFIGURAÇÕES DE MODELOS E ARQUIVOS
@@ -201,6 +202,12 @@ class App(tk.Tk):
         
         # Aplica a barra de título escura nativa no Windows
         aplicar_tema_titulo_escuro(self)
+        
+        try:
+            img = tk.PhotoImage(data=LOGO_B64)
+            self.iconphoto(False, img)
+        except Exception:
+            pass
         
         self._build_ui()
         self.after(50, self._centralizar)
@@ -651,6 +658,12 @@ class App(tk.Tk):
         
         # Aplica a barra de título escura nativa no Windows
         aplicar_tema_titulo_escuro(win_calc)
+
+        try:
+            img = tk.PhotoImage(data=LOGO_B64)
+            win_calc.iconphoto(False, img)
+        except Exception:
+            pass
 
         self._montar_widget_calculadora(win_calc, is_popup=True)
 
