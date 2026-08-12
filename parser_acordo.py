@@ -725,7 +725,7 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     if "vencimento_entrada" in rotulos_dict and rotulos_dict["vencimento_entrada"]:
         dados.vencimento_entrada = extrair_vencimento_entrada(rotulos_dict["vencimento_entrada"])
     if not dados.vencimento_entrada:
-        m_ve = re.search(r"(?i)\b(?:vencimento\s+(?:da\s+entrada|em)|entrada\s+para(?:\s+o\s+dia)?|primeiro\s+vencimento:?)\s*(\d{2}[/\.-]\d{2}(?:[/\.-]\d{4})?)", texto)
+        m_ve = re.search(r"(?i)\b(?:vencimento\s+(?:da\s+entrada|em)|entrada(?:.{0,30}?)para(?:\s+o\s+dia)?|primeiro\s+vencimento:?)\s*(\d{2}[/\.-]\d{2}(?:[/\.-]\d{4})?)", texto)
         if m_ve:
             dt = m_ve.group(1).replace(".", "/").replace("-", "/")
             if len(dt) == 5:

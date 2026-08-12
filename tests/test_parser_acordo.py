@@ -163,6 +163,35 @@ def test_screenshot_3_dados_acordo():
     assert dados["dia_parcela"] == "10"
 
 
+def test_cenario_thamires():
+    """
+    Teste para o cenário da Thamires com 'Entrada R$ 972,00 para o dia 15/08/2026'
+    """
+    mensagem = """Cliente: Thamires Beatriz Souza Lopes
+Processo: 0905536-96.2025.8.14.0301
+
+CPF / CNPJ: 03018812271
+
+Totaliza: R$ 6864,82
+Com desconto restou em R$ 5.972,00  
+Compete de: 10/12/2020 a 10/06/2021
+Entrada R$ 972,00 para o dia 15/08/2026
++ 10 parcelas de R$500,00 iniciando em 10/09/2026
+Demonstrativo salvo no global.
+Endereço: Av. Roberto Camelier, n. 390, apto. 204, Cep 66.033-420, Bairro Jurunas, Belm-Pa.
+Fone: (91) 99381-1404
+E-mail: thamires.beatriz@hotmail.com"""
+
+    dados = interpretar_mensagem(mensagem)
+    assert dados["vencimento_entrada"] == "15/08/2026"
+    assert dados["valor_original"] == "6.864,82"
+    assert dados["valor_acordo"] == "5.972,00"
+    assert dados["competencias"] == "10/12/2020 a 10/06/2021"
+    assert dados["valor_entrada"] == "972,00"
+    assert dados["quantidade_parcelas"] == "10"
+    assert dados["valor_parcela"] == "500,00"
+    assert dados["inicio_parcelas"] == "10/09/2026"
+    assert dados["dia_parcela"] == "10"
 def test_endereco_com_cep_formato():
     """
     Teste com 'Endereço com CEP:' - formato que junta endereço e CEP no mesmo rótulo.
