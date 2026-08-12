@@ -9,6 +9,7 @@ from num2words import num2words
 import tkinter as tk
 from tkinter import ttk, messagebox, scrolledtext, filedialog
 import calendar
+# pyrefly: ignore [missing-import]
 import pdfplumber
 
 from parser_acordo import (
@@ -712,6 +713,14 @@ class App(tk.Tk):
         if not campos.get("nome"):
             messagebox.showwarning("Aviso", "O campo 'Nome / Cliente' é obrigatório.")
             return
+
+        if tipo == "parcelado":
+            dia = campos.get("dia_parcela")
+            # Extrai apenas números do dia caso o usuário digite "dia 10"
+            num_dia = "".join(filter(str.isdigit, dia)) if dia else ""
+            if num_dia not in ("10", "25"):
+                messagebox.showwarning("Aviso", "O dia de vencimento da parcela DEVE ser obrigatóriamente 10 ou 25.")
+                return
 
         tipo_label = "PARCELADO" if tipo == "parcelado" else "À VISTA"
         self.status_var.set(f"Gerando minuta de termo de acordo [{tipo_label}]...")
