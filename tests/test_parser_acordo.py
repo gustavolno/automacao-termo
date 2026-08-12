@@ -12,7 +12,7 @@ def test_mensagem_informal_completa():
         "Processo 0700003-45.2026.8.07.0003. Telefone/WhatsApp: 61900000003. Email juliana.costa@example.com. "
         "Mora na Quadra Fictícia 10, Conjunto B, Casa 08, Brasília DF, CEP 72000-003. "
         "A dívida é de R$ 9.850,00 e ficou negociada por R$ 8.865,00. Entrada de R$ 865,00 e o restante "
-        "em 16x de R$ 500,00. Vencimento da entrada em 20/08/2026 e parcelas todo dia 20."
+        "em 16x de R$ 500,00. Vencimento da entrada em 20/08/2026 e parcelas todo dia 25."
     )
 
     dados = interpretar_mensagem(mensagem)
@@ -30,7 +30,7 @@ def test_mensagem_informal_completa():
     assert dados["vencimento_entrada"] == "20/08/2026"
     assert dados["quantidade_parcelas"] == "16"
     assert dados["valor_parcela"] == "500,00"
-    assert dados["dia_parcela"] == "20"
+    assert dados["dia_parcela"] == "25"
     assert dados["matricula"] == ""
     assert dados["competencias"] == ""
     assert dados["inicio_parcelas"] == ""

@@ -309,7 +309,7 @@ ROTULOS_MAP = [
     ("valor_original", [
         r"valor\s+total\s+da\s+d[ií]vida", r"valor\s+da\s+causa", r"valor\s+da\s+d[ií]vida",
         r"valor\s+original", r"valor\s+do\s+d[eé]bito", r"valor\s+devido",
-        r"d[eé]bito\s+no\s+valor\s+de", r"a\s+d[ií]vida\s+[eé]\s+de", r"valor\s+atualizado\s+da\s+causa"
+        r"d[eé]bito\s+no\s+valor\s+de", r"a\s+d[ií]vida\s+[eé]\s+de", r"valor\s+atualizado\s+da\s+causa", r"totaliza"
     ]),
     ("valor_acordo", [
         r"valor\s+total\s+negociado", r"valor\s+total\s+acordado", r"valor\s+total\s+do\s+acordo",
@@ -344,7 +344,7 @@ ROTULOS_MAP = [
         r"vencendo\s+a\s+cada\s+dia", r"todo\s+dia"
     ]),
     ("competencias", [
-        r"compet[eê]ncias\s+negociadas", r"compet[eê]ncias", r"per[ií]odo\s+negociado"
+        r"compet[eê]ncias\s+negociadas", r"compet[eê]ncias", r"per[ií]odo\s+negociado", r"compete\s+de", r"compete"
     ]),
     ("cabeçalho_email", [
         r"data\s*/\s*hora\s+do\s+atendimento", r"tipo\s+do\s+atendimento", r"assunto\s+do\s+atendimento",
@@ -398,14 +398,21 @@ def extrair_campos_rotulados(texto: str) -> Dict[str, str]:
 
 
 def extrair_cpf(texto: str) -> str:
-    m_mascara = re.search(r"\b(\d{3}\.\d{3}\.\d{3}-\d{2})\b", texto)
+    m_mascara = re.search(r"\b(\d{3}[\.\s]?\d{3}[\.\s]?\d{3}[-\.\s]?\d{2})\b", texto)
     if m_mascara:
-        return m_mascara.group(1)
+        d = re.sub(r"\D", "", m_mascara.group(1))
+        if len(d) == 11:
+            return f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}"
+        elif len(d) == 14:
+            return f"{d[:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-{d[12:]}"
 
-    match_digits = re.search(r"\b(\d{11})\b", texto)
+    match_digits = re.search(r"\b(\d{11}|\d{14})\b", texto)
     if match_digits:
         d = match_digits.group(1)
-        return f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}"
+        if len(d) == 11:
+            return f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}"
+        elif len(d) == 14:
+            return f"{d[:2]}.{d[2:5]}.{d[5:8]}/{d[8:12]}-{d[12:]}"
 
     return ""
 
@@ -497,7 +504,7 @@ def limpar_nome(nome_raw: str) -> str:
     for p in prefixos:
         res = re.sub(p, "", res, flags=re.IGNORECASE).strip()
 
-    res = re.split(r"(?i),?\s*(?:cpf|cnpj|processo|telefone|e-?mail|mora\s+na|residente|valor|data|\.|$)", res)[0]
+    res = re.split(r"(?i),?\s*(?:cpf|c\.p\.f\.?|cnpj|processo|telefone|e-?mail|mora\s+na|residente|valor|data|\.|$)", res)[0]
     res = re.sub(r"[^\w\s\.\-']", "", res).strip()
     res = re.sub(r"\s+", " ", res)
     return res
@@ -514,11 +521,10 @@ def extrair_parcelamento(texto: str) -> Tuple[str, str]:
 
 
 def extrair_dia_parcela(texto: str) -> str:
-    match = re.search(r"(?i)\b(?:todo\s+dia|dia|cada\s+dia)\s*(\d{1,2})\b", texto)
-    if match:
-        dia = int(match.group(1))
-        if 1 <= dia <= 31:
-            return str(dia)
+    matches = re.findall(r"(?i)\b(?:todo\s+dia|dia|cada\s+dia)\s*(\d{1,2})\b", texto)
+    for dia in matches:
+        if dia in ["10", "25"]:
+            return dia
     return ""
 
 
@@ -527,6 +533,10 @@ def extrair_vencimento_entrada(texto: str) -> str:
     if match:
         dt_str = match.group(1).replace(".", "/").replace("-", "/")
         return dt_str
+    match_curto = re.search(r"\b(\d{2}[/\.-]\d{2})\b", texto)
+    if match_curto:
+        dt_str = match_curto.group(1).replace(".", "/").replace("-", "/")
+        return f"{dt_str}/{datetime.now().year}"
     return ""
 
 
@@ -715,9 +725,12 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     if "vencimento_entrada" in rotulos_dict and rotulos_dict["vencimento_entrada"]:
         dados.vencimento_entrada = extrair_vencimento_entrada(rotulos_dict["vencimento_entrada"])
     if not dados.vencimento_entrada:
-        m_ve = re.search(r"(?i)\b(?:vencimento\s+(?:da\s+entrada|em)|entrada\s+para|primeiro\s+vencimento:?)\s*(\d{2}[/\.-]\d{2}[/\.-]\d{4})", texto)
+        m_ve = re.search(r"(?i)\b(?:vencimento\s+(?:da\s+entrada|em)|entrada\s+para(?:\s+o\s+dia)?|primeiro\s+vencimento:?)\s*(\d{2}[/\.-]\d{2}(?:[/\.-]\d{4})?)", texto)
         if m_ve:
-            dados.vencimento_entrada = m_ve.group(1).replace(".", "/").replace("-", "/")
+            dt = m_ve.group(1).replace(".", "/").replace("-", "/")
+            if len(dt) == 5:
+                dt = f"{dt}/{datetime.now().year}"
+            dados.vencimento_entrada = dt
 
     if "dia_parcela" in rotulos_dict and rotulos_dict["dia_parcela"]:
         dados.dia_parcela = extrair_dia_parcela(rotulos_dict["dia_parcela"])
@@ -729,8 +742,10 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     if not dados.inicio_parcelas:
         dados.inicio_parcelas = extrair_inicio_parcelas(texto, dados.vencimento_entrada)
         
-    if dados.inicio_parcelas and not dados.dia_parcela:
-        dados.dia_parcela = str(int(dados.inicio_parcelas.split("/")[0]))
+    if dados.inicio_parcelas:
+        dia_inicio = str(int(dados.inicio_parcelas.split("/")[0]))
+        if dia_inicio in ["10", "25"]:
+            dados.dia_parcela = dia_inicio
 
     # COMPETÊNCIAS
     if "competencias" in rotulos_dict and rotulos_dict["competencias"]:
