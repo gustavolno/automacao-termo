@@ -132,7 +132,7 @@ def formatar_e_calcular(campos: dict) -> dict:
 def gerar_documento(campos_revisados: dict, modelo_path: str = MODELO_PATH):
     dados = formatar_e_calcular(campos_revisados)
     os.makedirs(PASTA_SAIDA, exist_ok=True)
-    nome_clean = re.sub(r'[\\/*?:"<>|]', "", dados["nome_cliente"]).strip().title()[:60]
+    nome_clean = re.sub(r'[\\/*?:"<>|]', "", dados["nome_cliente"]).strip().upper()[:60]
     caminho = os.path.join(PASTA_SAIDA, f"TERMO DE ACORDO - {nome_clean}.docx")
     doc = DocxTemplate(modelo_path)
     doc.render(dados)
