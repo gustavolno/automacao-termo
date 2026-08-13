@@ -14,12 +14,27 @@ Fluxo:
 """
 
 import os
+import sys
 import time
 from datetime import datetime
 from parser_geap import extrair_parcelas, Parcela
 from typing import List, Callable, Optional
 
 URL_JURISCALC = "https://juriscalc.tjdft.jus.br/publico/calculos"
+
+
+def _configurar_playwright_path():
+    """
+    Garante que o Playwright encontre o Chromium mesmo quando rodando
+    como executável PyInstaller (.exe).
+    Aponta PLAYWRIGHT_BROWSERS_PATH para a pasta instalada em AppData.
+    """
+    local_appdata = os.environ.get("LOCALAPPDATA", "")
+    browsers_path = os.path.join(local_appdata, "ms-playwright")
+    if os.path.isdir(browsers_path):
+        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+    # Evita que o Playwright tente baixar o browser ao não encontrá-lo
+    os.environ.setdefault("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS", "1")
 
 
 def rodar_automacao(
@@ -58,10 +73,24 @@ def rodar_automacao(
         raise ValueError("Nenhuma parcela encontrada no PDF. Verifique se é uma Ficha Financeira da GEAP/IPASEP.")
     prog(f"✅ {len(parcelas)} parcelas encontradas.", 10)
     
+    _configurar_playwright_path()
+    
     with sync_playwright() as p:
         # --- ETAPA 2: Abrir navegador ---
-        prog("🌐 Abrindo navegador...", 12)
-        browser = p.chromium.launch(headless=not visivel)
+        prog("Abrindo navegador...", 12)
+        try:
+            browser = p.chromium.launch(
+                headless=not visivel,
+                timeout=60000,  # 60s para abrir
+            )
+        except Exception as e:
+            raise RuntimeError(
+                f"Nao foi possivel abrir o navegador Chromium.\n"
+                f"Verifique se o Playwright esta instalado corretamente.\n\n"
+                f"Solucao: abra o PowerShell na pasta do projeto e execute:\n"
+                f"  .\\venv\\Scripts\\playwright install chromium\n\n"
+                f"Detalhes do erro: {e}"
+            ) from e
         context = browser.new_context(
             locale="pt-BR",
             timezone_id="America/Sao_Paulo",
