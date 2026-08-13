@@ -1,8 +1,16 @@
 import re
+import os
+import sys
 import ctypes
 import tkinter as tk
 from tkinter import ttk, messagebox
 from decimal import Decimal, ROUND_HALF_UP
+
+# ── Ajuste de PATH para imports da nova estrutura de pastas ──
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_HERE)
+sys.path.insert(0, os.path.join(_ROOT, "compartilhado"))
+
 from logo_b64 import LOGO_B64
 
 # ============================================================

@@ -1,3 +1,4 @@
+# pyrefly: ignore [missing-import]
 from PIL import Image, ImageDraw, ImageFont
 import base64
 import io

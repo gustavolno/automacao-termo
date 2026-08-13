@@ -12,6 +12,12 @@ import calendar
 # pyrefly: ignore [missing-import]
 import pdfplumber
 
+# ── Ajuste de PATH para imports da nova estrutura de pastas ──
+_HERE = os.path.dirname(os.path.abspath(__file__))
+_ROOT = os.path.dirname(_HERE)
+sys.path.insert(0, _HERE)          # gerador_termos/
+sys.path.insert(0, os.path.join(_ROOT, "compartilhado"))  # compartilhado/
+
 from parser_acordo import (
     interpretar_mensagem,
     parse_valor_brl,
@@ -25,9 +31,9 @@ from logo_b64 import LOGO_B64
 # ============================================================
 # CONFIGURAÇÕES DE MODELOS E ARQUIVOS
 # ============================================================
-MODELO_PATH = "MODELO.docx"
-MODELO_AVISTA_PATH = "MODELO DE TERMO DE ACORDO-A VISTA.docx"
-PASTA_SAIDA = "Termos Gerados"
+MODELO_PATH = os.path.join(_HERE, "modelos", "MODELO.docx")
+MODELO_AVISTA_PATH = os.path.join(_HERE, "modelos", "MODELO DE TERMO DE ACORDO-A VISTA.docx")
+PASTA_SAIDA = os.path.join(_ROOT, "Termos Gerados")
 
 
 def aplicar_tema_titulo_escuro(window):
