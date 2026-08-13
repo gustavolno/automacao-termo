@@ -317,7 +317,7 @@ ROTULOS_MAP = [
         r"valor\s+para\s+pagamento\s+parcelado\s+com\s+desconto",
         r"valor\s+total\s+para\s+negocia[cç][aã]o", r"valor\s+do\s+acordo", r"valor\s+negociado",
         r"valor\s+acordado", r"valor\s+final", r"valor\s+fechado",
-        r"acordo\s+no\s+valor\s+de", r"ficou\s+negociada\s+por", r"resultando\s+no\s+valor\s+total\s+de"
+        r"acordo\s+(?:fechado\s+)?no\s+valor\s+de", r"ficou\s+negociada\s+por", r"resultando\s+no\s+valor\s+total\s+de"
     ]),
     ("condicao", [
         r"condi[cç][oõ]es\s+da\s+negocia[cç][aã]o", r"condi[cç][aã]o\s+da\s+negocia[cç][aã]o",
@@ -660,7 +660,7 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
     if "valor_acordo" in rotulos_dict and rotulos_dict["valor_acordo"]:
         dec_acordo = parse_valor_brl(rotulos_dict["valor_acordo"])
     if dec_acordo is None:
-        m_va = re.search(r"(?i)\b(?:valor\s+(?:total\s+negociado|total\s+acordado|do\s+acordo|negociado|final|fechado\s+com\s+o?\s*desconto)|ficou\s+negociada\s+por|acordo\s+no\s+valor\s+de|resultando\s+no\s+valor\s+total\s+de)\s*:?\s*R?\$?\s*([\d\.,]+)", texto)
+        m_va = re.search(r"(?i)\b(?:valor\s+(?:total\s+negociado|total\s+acordado|do\s+acordo|negociado|final|fechado\s+com\s+o?\s*desconto)|ficou\s+negociada\s+por|acordo\s+(?:fechado\s+)?no\s+valor\s+de|resultando\s+no\s+valor\s+total\s+de)\s*:?\s*R?\$?\s*([\d\.,]+)", texto)
         if m_va:
             dec_acordo = parse_valor_brl(m_va.group(1))
 
