@@ -59,6 +59,7 @@ def rodar_automacao(
     Returns:
         Caminho do PDF gerado
     """
+    # pyrefly: ignore [missing-import]
     from playwright.sync_api import sync_playwright
     
     def prog(msg: str, pct: int = 0):
@@ -174,55 +175,58 @@ def _adicionar_valor(page, parcela: Parcela):
 
 def _adicionar_multa(page, pct: float):
     """Configura e adiciona a multa percentual."""
-    # Rolar até a seção de Multa
-    multa_btn_add = page.locator("button:has-text('Adicionar multa')").first
-    multa_btn_add.scroll_into_view_if_needed()
-    page.wait_for_timeout(300)
-    
-    # Selecionar o radio "Percentual" (tipoDeMulta0) se não estiver selecionado
+    pct_str = f"{pct:.2f}".replace(".", ",")
+
+    # 1. Garantir que o radio 'Percentual' está visível e selecionado
     radio = page.locator("#tipoDeMulta0")
+    radio.scroll_into_view_if_needed()
+    page.wait_for_timeout(400)
     if radio.count() > 0 and not radio.is_checked():
         radio.click()
-        page.wait_for_timeout(200)
-    
-    # Preencher o percentual
-    pct_str = f"{pct:.2f}".replace(".", ",")
-    pct_input = page.locator("input[placeholder='0,00%']").first
+        page.wait_for_timeout(300)
+
+    # 2. Campo de percentual logo após o radio tipoDeMulta0 (XPath exato)
+    pct_input = page.locator(
+        "xpath=//input[@id='tipoDeMulta0']/following::input[@placeholder='0,00%'][1]"
+    )
+    pct_input.scroll_into_view_if_needed()
+    page.wait_for_timeout(200)
     pct_input.click()
     pct_input.triple_click()
     pct_input.fill(pct_str)
-    
-    # Clicar em Adicionar multa
-    multa_btn_add.click()
+    page.wait_for_timeout(200)
+
+    # 3. Botão Adicionar multa
+    page.locator("button:has-text('Adicionar multa')").first.click()
+    page.wait_for_timeout(500)
 
 
 def _adicionar_honorarios(page, pct: float):
     """Configura e adiciona os honorários percentuais."""
-    # Rolar até a seção de Honorários
-    hon_btn_add = page.locator("button:has-text('Adicionar honorários')").first
-    hon_btn_add.scroll_into_view_if_needed()
-    page.wait_for_timeout(300)
-    
-    # Selecionar radio "Honorário percentual" (tipoHonorarios0)
+    pct_str = f"{pct:.2f}".replace(".", ",")
+
+    # 1. Garantir que o radio 'Percentual' está visível e selecionado
     radio = page.locator("#tipoHonorarios0")
+    radio.scroll_into_view_if_needed()
+    page.wait_for_timeout(400)
     if radio.count() > 0 and not radio.is_checked():
         radio.click()
-        page.wait_for_timeout(200)
-    
-    # Preencher o percentual (segundo campo placeholder='0,00%' após o de multa)
-    pct_str = f"{pct:.2f}".replace(".", ",")
-    pct_inputs = page.locator("input[placeholder='0,00%']")
-    # O campo de honorários é o segundo (índice 1)
-    if pct_inputs.count() > 1:
-        campo = pct_inputs.nth(1)
-    else:
-        campo = pct_inputs.first
-    campo.click()
-    campo.triple_click()
-    campo.fill(pct_str)
-    
-    # Clicar em Adicionar honorários
-    hon_btn_add.click()
+        page.wait_for_timeout(300)
+
+    # 2. Campo de percentual logo após o radio tipoHonorarios0 (XPath exato)
+    pct_input = page.locator(
+        "xpath=//input[@id='tipoHonorarios0']/following::input[@placeholder='0,00%'][1]"
+    )
+    pct_input.scroll_into_view_if_needed()
+    page.wait_for_timeout(200)
+    pct_input.click()
+    pct_input.triple_click()
+    pct_input.fill(pct_str)
+    page.wait_for_timeout(200)
+
+    # 3. Botão Adicionar honorários
+    page.locator("button:has-text('Adicionar honor\u00e1rios')").first.click()
+    page.wait_for_timeout(500)
 
 
 if __name__ == "__main__":
