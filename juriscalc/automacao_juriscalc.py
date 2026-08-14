@@ -156,6 +156,9 @@ def _adicionar_valor(page, parcela: Parcela):
     # Campo Valor (placeholder "R$") - usar type para acionar a máscara do Angular
     valor_input = page.locator("input[placeholder='R$']").first
     valor_input.click()
+    valor_input.press("Control+A")
+    valor_input.press("Backspace")
+    page.wait_for_timeout(100)
     valor_input.type(parcela.valor, delay=50)
     
     # Campo Data - input do tipo "date" espera o formato ISO YYYY-MM-DD
