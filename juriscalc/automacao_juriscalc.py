@@ -217,7 +217,9 @@ def _adicionar_multa(page, pct: float):
     pct_input.scroll_into_view_if_needed()
     page.wait_for_timeout(200)
     pct_input.click(force=True, timeout=5000)
-    pct_input.fill(pct_str, timeout=5000)
+    pct_input.press("Control+A")
+    pct_input.press("Backspace")
+    pct_input.type(pct_str, delay=50)
     page.wait_for_timeout(200)
 
     # 3. Botão Adicionar multa
@@ -244,7 +246,9 @@ def _adicionar_honorarios(page, pct: float):
     pct_input.scroll_into_view_if_needed()
     page.wait_for_timeout(200)
     pct_input.click(force=True, timeout=5000)
-    pct_input.fill(pct_str, timeout=5000)
+    pct_input.press("Control+A")
+    pct_input.press("Backspace")
+    pct_input.type(pct_str, delay=50)
     page.wait_for_timeout(200)
 
     # 3. Botão Adicionar honorários
