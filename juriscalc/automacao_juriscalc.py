@@ -153,16 +153,16 @@ def rodar_automacao(
 
 def _adicionar_valor(page, parcela: Parcela):
     """Preenche e adiciona um valor no formulário do JurisCalc."""
-    # Campo Valor (placeholder "R$")
+    # Campo Valor (placeholder "R$") - usar type para acionar a máscara do Angular
     valor_input = page.locator("input[placeholder='R$']").first
     valor_input.click()
-    valor_input.fill(parcela.valor)
+    valor_input.type(parcela.valor, delay=50)
     
-    # Campo Data
+    # Campo Data - input do tipo "date" espera o formato ISO YYYY-MM-DD
     data_input = page.locator("input[placeholder='Data do valor']").first
-    data_input.click()
-    data_input.fill("")
-    data_input.type(parcela.data)
+    dia, mes, ano = parcela.data.split("/")
+    data_iso = f"{ano}-{mes}-{dia}"
+    data_input.fill(data_iso)
     
     # Campo Descrição
     desc_input = page.locator("input[placeholder='Descrição (opcional)']").first
@@ -181,8 +181,8 @@ def _adicionar_multa(page, pct: float):
     radio = page.locator("#tipoDeMulta0")
     radio.scroll_into_view_if_needed()
     page.wait_for_timeout(400)
-    if radio.count() > 0 and not radio.is_checked():
-        radio.click()
+    if radio.count() > 0 and not radio.is_checked(timeout=5000):
+        radio.click(force=True, timeout=5000)
         page.wait_for_timeout(300)
 
     # 2. Campo de percentual logo após o radio tipoDeMulta0 (XPath exato)
@@ -191,13 +191,12 @@ def _adicionar_multa(page, pct: float):
     )
     pct_input.scroll_into_view_if_needed()
     page.wait_for_timeout(200)
-    pct_input.click()
-    pct_input.triple_click()
-    pct_input.fill(pct_str)
+    pct_input.click(force=True, timeout=5000)
+    pct_input.fill(pct_str, timeout=5000)
     page.wait_for_timeout(200)
 
     # 3. Botão Adicionar multa
-    page.locator("button:has-text('Adicionar multa')").first.click()
+    page.locator("button:has-text('Adicionar multa')").first.click(force=True, timeout=5000)
     page.wait_for_timeout(500)
 
 
@@ -209,8 +208,8 @@ def _adicionar_honorarios(page, pct: float):
     radio = page.locator("#tipoHonorarios0")
     radio.scroll_into_view_if_needed()
     page.wait_for_timeout(400)
-    if radio.count() > 0 and not radio.is_checked():
-        radio.click()
+    if radio.count() > 0 and not radio.is_checked(timeout=5000):
+        radio.click(force=True, timeout=5000)
         page.wait_for_timeout(300)
 
     # 2. Campo de percentual logo após o radio tipoHonorarios0 (XPath exato)
@@ -219,13 +218,12 @@ def _adicionar_honorarios(page, pct: float):
     )
     pct_input.scroll_into_view_if_needed()
     page.wait_for_timeout(200)
-    pct_input.click()
-    pct_input.triple_click()
-    pct_input.fill(pct_str)
+    pct_input.click(force=True, timeout=5000)
+    pct_input.fill(pct_str, timeout=5000)
     page.wait_for_timeout(200)
 
     # 3. Botão Adicionar honorários
-    page.locator("button:has-text('Adicionar honor\u00e1rios')").first.click()
+    page.locator("button:has-text('Adicionar honor\u00e1rios')").first.click(force=True, timeout=5000)
     page.wait_for_timeout(500)
 
 
