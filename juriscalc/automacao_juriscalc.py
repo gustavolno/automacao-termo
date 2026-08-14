@@ -23,17 +23,37 @@ from typing import List, Callable, Optional
 URL_JURISCALC = "https://juriscalc.tjdft.jus.br/publico/calculos"
 
 
-def _configurar_playwright_path():
+def _configurar_playwright_path(prog_callback=None):
     """
     Garante que o Playwright encontre o Chromium mesmo quando rodando
     como executável PyInstaller (.exe).
     Aponta PLAYWRIGHT_BROWSERS_PATH para a pasta instalada em AppData.
+    Se a pasta não existir (ex: primeiro uso em outro computador), baixa automaticamente.
     """
     local_appdata = os.environ.get("LOCALAPPDATA", "")
     browsers_path = os.path.join(local_appdata, "ms-playwright")
-    if os.path.isdir(browsers_path):
-        os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
-    # Evita que o Playwright tente baixar o browser ao não encontrá-lo
+    
+    # Se não existir a pasta ms-playwright ou ela estiver vazia, precisamos instalar
+    if not os.path.isdir(browsers_path) or len(os.listdir(browsers_path)) == 0:
+        if prog_callback:
+            prog_callback("Baixando navegador (apenas no 1º uso, aguarde)...", 5)
+        
+        try:
+            from playwright._impl._driver import compute_driver_executable, get_driver_env
+            import subprocess
+            driver_executable = compute_driver_executable()
+            env = get_driver_env()
+            # Força o download no diretório padrão do usuário (AppData)
+            os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+            # driver_executable é uma tupla ('node.exe', 'cli.js')
+            subprocess.run([driver_executable[0], driver_executable[1], "install", "chromium"], env=env, check=True)
+            if prog_callback:
+                prog_callback("Navegador instalado com sucesso!", 10)
+        except Exception as e:
+            raise RuntimeError(f"Erro ao baixar o navegador Chromium automaticamente: {e}")
+            
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = browsers_path
+    # Evita que o Playwright tente baixar o browser ao não encontrá-lo durante a execução normal
     os.environ.setdefault("PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS", "1")
 
 
@@ -67,6 +87,9 @@ def rodar_automacao(
             callback_progresso(msg, pct)
         print(f"[{pct:3d}%] {msg}")
     
+    prog("Iniciando motor de automação (Playwright)...", 5)
+    _configurar_playwright_path(prog)
+    
     # --- ETAPA 1: Ler o PDF ---
     prog("📄 Lendo parcelas do PDF...", 5)
     parcelas = extrair_parcelas(caminho_pdf)
@@ -74,7 +97,6 @@ def rodar_automacao(
         raise ValueError("Nenhuma parcela encontrada no PDF. Verifique se é uma Ficha Financeira da GEAP/IPASEP.")
     prog(f"✅ {len(parcelas)} parcelas encontradas.", 10)
     
-    _configurar_playwright_path()
     
     with sync_playwright() as p:
         # --- ETAPA 2: Abrir navegador ---
