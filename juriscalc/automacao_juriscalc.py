@@ -39,6 +39,7 @@ def _configurar_playwright_path(prog_callback=None):
             prog_callback("Baixando navegador (apenas no 1º uso, aguarde)...", 5)
         
         try:
+            # pyrefly: ignore [missing-import]
             from playwright._impl._driver import compute_driver_executable, get_driver_env
             import subprocess
             driver_executable = compute_driver_executable()

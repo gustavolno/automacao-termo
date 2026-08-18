@@ -1,0 +1,145 @@
+<!DOCTYPE html><html><head><meta http-equiv="origin-trial" content="A7vZI3v+Gz7JfuRolKNM4Aff6zaGuT7X0mf3wtoZTnKv6497cVMnhy03KDqX7kBz/q/iidW7srW31oQbBt4VhgoAAACUeyJvcmlnaW4iOiJodHRwczovL3d3dy5nb29nbGUuY29tOjQ0MyIsImZlYXR1cmUiOiJEaXNhYmxlVGhpcmRQYXJ0eVN0b3JhZ2VQYXJ0aXRpb25pbmczIiwiZXhwaXJ5IjoxNzU3OTgwODAwLCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ=="><meta http-equiv="origin-trial" content="A7vZI3v+Gz7JfuRolKNM4Aff6zaGuT7X0mf3wtoZTnKv6497cVMnhy03KDqX7kBz/q/iidW7srW31oQbBt4VhgoAAACUeyJvcmlnaW4iOiJodHRwczovL3d3dy5nb29nbGUuY29tOjQ0MyIsImZlYXR1cmUiOiJEaXNhYmxlVGhpcmRQYXJ0eVN0b3JhZ2VQYXJ0aXRpb25pbmczIiwiZXhwaXJ5IjoxNzU3OTgwODAwLCJpc1N1YmRvbWFpbiI6dHJ1ZSwiaXNUaGlyZFBhcnR5Ijp0cnVlfQ==">
+<meta charset="utf-8">
+<meta name="generator" content="IntraWeb v15.6.0 Serial 202441497">
+
+
+
+<link href="/$/css/IWBase__2933165573.css" rel="stylesheet">
+<script type="text/javascript" async="" charset="utf-8" src="https://www.gstatic.com/recaptcha/releases/XOqlk8PL_yVx6IdpLbpXdiLy/recaptcha__en.js" crossorigin="anonymous" integrity="sha384-5gTdLl6IS0Y6zKiLKimmhaY3IOLosQFpvj9Tvt9s2RAiKLtLUEWOP5N8mtHLNUzF" nonce="iesDUgNY1dZgtwVLkEfP4FpIi1o"></script><script type="text/javascript" async="" charset="utf-8" src="https://www.gstatic.com/recaptcha/releases/XOqlk8PL_yVx6IdpLbpXdiLy/recaptcha__en.js" crossorigin="anonymous" integrity="sha384-5gTdLl6IS0Y6zKiLKimmhaY3IOLosQFpvj9Tvt9s2RAiKLtLUEWOP5N8mtHLNUzF" nonce="iesDUgNY1dZgtwVLkEfP4FpIi1o"></script><script nonce="iesDUgNY1dZgtwVLkEfP4FpIi1o">
+var GURLBase="/$/", GAppID="CWzCk9SO1PLF36XjMmMuyzut5oS", GTrackID=1;
+function doOnReady(f){
+   var d = document;
+   if (d.readyState!="loading") f();
+   else if (d.addEventListener) d.addEventListener("DOMContentLoaded", f);
+   else d.attachEvent("onreadystatechange", function(){if (d.readyState=="complete") f();})
+}
+</script>
+<script src="/$/js/IWLib__1925002372.js"></script>
+<script src="/$/js/IWBase__4046396584.js"></script>
+<script src="/$/js/IWGecko__3425527816.js"></script>
+<script nonce="iesDUgNY1dZgtwVLkEfP4FpIi1o">
+function EDTSENHA_onkeypress(event) {
+if(event.keycode==13)
+{
+BTNENTRAR_onClick()
+}
+return true;
+}
+function BTNGRAVARRESPOSTA_onclick(event) {
+return SubmitClickConfirm('BTNGRAVARRESPOSTA','', true, '');
+}
+function BTNCANCELARRESPOSTA_onclick(event) {
+return SubmitClickConfirm('BTNCANCELARRESPOSTA','', true, '');
+}
+function BTNATUALIZARSENHA_onclick(event) {
+return SubmitClickConfirm('BTNATUALIZARSENHA','', true, '');
+}
+function BTNCONTINUA_onclick(event) {
+return SubmitClickConfirm('BTNCONTINUA','', true, '');
+}
+function BTNCONFIRMAR2AF_onclick(event) {
+return SubmitClickConfirm('BTNCONFIRMAR2AF','', true, '');
+}
+function FormDefaultSubmit(event){return false;}
+function IWTop(){return window;}
+function Validate(){  return true;
+}
+
+function InitIWCLObjects() {
+  var f = IW.initIWCL, p = IWCLForm;
+  f(p,"MENSAGEMSENHA",0)
+  f(p,"LBLVERSAO",0)
+  f(p,"LBLENQUETE",0)
+  f(p,"LBLTITULOENQUETE",0)
+  f(p,"LBLLOGO",0)
+  f(p,"LBLVERSAOAPP",0)
+  f(p,"LBLCARACTERISTICAS",0)
+  f(p,"IWRECAPTCHA1",0)
+  f(p,"EDTLOGIN",1).HookDH("OnKeyUp")
+  f(p,"EDTUSUARIO",1).HookDH("OnKeyUp")
+  f(p,"EDTSENHA",1).HookEvent("keypress",EDTSENHA_onkeypress).HookDH("OnKeyUp")
+  f(p,"BTNENTRAR",0).HookDH("OnClick:Lock")
+  f(p,"EDTCODIGORECUPERADOSENHA",1)
+  f(p,"BTNESQUECISENHA",0).HookDH("OnClick")
+  f(p,"BTNVERIFICACODIGO",0).HookDH("OnClick")
+  f(p,"BTNTROCASENHA",0).HookDH("OnClick")
+  f(p,"EDTNOVASENHA",1)
+  f(p,"EDTCONFIRMANOVASENHA",1).HookDH("OnBlur")
+  f(p,"BTNGRAVARRESPOSTA",0).HookEvent("click",BTNGRAVARRESPOSTA_onclick)
+  f(p,"BTNCANCELARRESPOSTA",0).HookEvent("click",BTNCANCELARRESPOSTA_onclick)
+  f(p,"EDTNOVASENHA2",1)
+  f(p,"EDTCONFIRMANOVASENHA2",1).HookDH("OnBlur")
+  f(p,"BTNATUALIZARSENHA",0).HookEvent("click",BTNATUALIZARSENHA_onclick)
+  f(p,"BTNCONTINUA",0).HookEvent("click",BTNCONTINUA_onclick)
+  f(p,"IWMEMO1",1)
+  f(p,"EDTIPLOCAL",1)
+  f(p,"EDTCODIGO2AF",1)
+  f(p,"BTNCONFIRMAR2AF",0).HookEvent("click",BTNCONFIRMAR2AF_onclick)
+  f(p,"EDTDRIVERID",1)
+  f(p,"EDTSERVER",1)
+  f(p,"EDTBANCODOGESTOR",1)
+  f(p,"EDTUSERNAME",1)
+  f(p,"BTNTESTARCONEXAO",0)
+  if (typeof OnAfterInitIWCL === "function") {OnAfterInitIWCL();}
+}
+
+function Initialize() {
+IW.Session.setWid("TapBt5wHruSiMXDoHjs-809X3Um");
+try{
+GActivateLock = true;
+InitRects(1280, 720);
+IW.Num.init({"appDecSep": ",","appThoSep": ".","$Symb": "R$","$Format": 2,"neg$Format": 1,"showThoSep": false});
+InitIWCLObjects();
+IW.doAfterLoad(true,false,false,false,false);
+history.go(1);
+}catch(e){console.log("Error executing Initialize(): " + e.message);console.log(e.stack||e.stacktrace||"");}finally{
+ReleaseLock();
+}
+IW.Utils.setActiveControl("EDTLOGIN");
+
+}
+</script>
+<script src="https://www.google.com/recaptcha/api.js"></script>
+
+
+
+
+<style data-type="iw" nonce="iesDUgNY1dZgtwVLkEfP4FpIi1o">
+.iw_default_submit_form{display: inline;}
+body{margin: 0;}
+</style>
+	<meta name="google-site-verification" content="P9Sk7QyKMjg9JgM4QnoxmN_8owxDAmDhv6mcbS4spuE">
+	<meta name="googlebot" content="noindex">
+	<meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<script src="https://www.google.com/recaptcha/api.js?render=PUBLIC KEY"></script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/js/bootstrap.bundle.min.js"></script>
+	<link rel="icon" type="image/x-icon" href="imagens/NovaLogoQD.ico">
+
+	<title>Global Office Web</title>
+
+	<link rel="stylesheet" type="text/css" href="style.css?v={%lblVersaoApp%}">
+	<script>
+		if ('serviceWorker' in navigator) {
+			navigator.serviceWorker.getRegistrations().then(function(registrations) {
+				for (let registration of registrations) { registration.unregister(); }
+			});
+		}
+	</script>
+
+	<meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+
+	<!-- Google Font: Montserrat -->
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+	<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet">
+
+	<!-- Datepicker / Timepicker / InputMask -->
+	<link rel="stylesheet" href="bower_components/bootstrap-daterangepicker/daterangepicker.css">
+	<link rel="stylesheet" href="bower_components/bootstrap-datepicker/dist/css/bootstrap-datepicker.min.css">
+	<link rel="stylesheet" href="plugins/timepicker/bootstrap-timepicker.min.css">
+	<script src="plugins/input-mask/jquery.inputmask.js"></script>
+	<script src="plugins/input-mask/jquery.inputmask.date.extensions.js"></script>
+	<script src="plugins/input-mask/jquery.inputmask.extensions.js"></script>
+	<script src="/js/jquery.maskedinput.js"></script></head></html>
