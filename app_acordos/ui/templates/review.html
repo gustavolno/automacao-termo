@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerador de Acordos Robusto - Revisão</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        slate: {
+                            900: '#0B0F17',
+                            800: '#111827',
+                            700: '#1E293B',
+                            600: '#334155',
+                        },
+                        gold: {
+                            500: '#C5A059',
+                            400: '#E5C170',
+                        },
+                        emerald: {
+                            500: '#10B981',
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['"Segoe UI"', 'sans-serif'],
+                        serif: ['Georgia', 'serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #0B0F17; color: #F8FAFC; }
+        .input-dark {
+            background-color: #0F172A;
+            border: 1px solid #334155;
+            color: #F8FAFC;
+        }
+        .input-dark:focus {
+            outline: none;
+            border-color: #C5A059;
+            box-shadow: 0 0 0 1px #C5A059;
+        }
+    </style>
+</head>
+<body class="antialiased min-h-screen flex flex-col">
+    <!-- Navbar -->
+    <nav class="bg-slate-800 border-b border-slate-600 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+        <div class="flex items-center space-x-4">
+            <span class="text-gold-500 text-2xl font-serif font-bold">⚖</span>
+            <div class="flex items-baseline space-x-2">
+                <span class="font-serif font-bold text-gold-500 text-lg tracking-wide">ALDRIGUES CÂNDIDO</span>
+                <span class="font-sans font-semibold text-white text-md tracking-wide">REVISÃO DE ACORDO</span>
+            </div>
+        </div>
+        <div class="flex space-x-4">
+            <a href="/" class="px-4 py-2 border border-slate-500 text-slate-300 hover:bg-slate-700 rounded-md transition font-medium">Cancelar / Voltar</a>
+            <button id="btn-aprovar" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md transition font-medium shadow flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                <span>APROVAR E ENVIAR PARA O GLOBAL</span>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-1 p-8 max-w-7xl mx-auto w-full grid grid-cols-1 lg:grid-cols-2 gap-8">
+        
+        <!-- COLUNA ESQUERDA: Dados do Cliente e Acordo -->
+        <div class="space-y-8">
+            
+            <!-- Cliente -->
+            <section class="bg-slate-700 rounded-lg border border-slate-600 p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1 h-full bg-gold-500"></div>
+                <h2 class="text-xl font-bold text-white mb-4 border-b border-slate-600 pb-2">1. Dados do Cliente</h2>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Nome</label>
+                        <input type="text" class="input-dark w-full px-3 py-2 rounded text-sm font-medium" value="{{ dados.cliente.nome }}">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">CPF</label>
+                        <input type="text" class="input-dark w-full px-3 py-2 rounded text-sm font-medium" value="{{ dados.cliente.cpf }}">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Processo</label>
+                        <input type="text" class="input-dark w-full px-3 py-2 rounded text-sm font-mono" value="{{ dados.cliente.processo }}">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">UF</label>
+                        <input type="text" class="input-dark w-full px-3 py-2 rounded text-sm" value="{{ dados.cliente.uf }}">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Acordo e Homologação -->
+            <section class="bg-slate-700 rounded-lg border border-slate-600 p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1 h-full bg-blue-500"></div>
+                <h2 class="text-xl font-bold text-white mb-4 border-b border-slate-600 pb-2">2. Homologação & Vínculo</h2>
+                
+                <div class="space-y-4">
+                    <div class="flex flex-col p-3 rounded bg-slate-800/50 border border-slate-600">
+                        <div class="flex justify-between items-start mb-2">
+                            <label class="text-sm font-bold text-white">Valor Homologado</label>
+                            <span class="text-xs px-2 py-1 bg-green-900/40 text-green-400 rounded-full border border-green-800">Confiança: Alta</span>
+                        </div>
+                        <input type="text" class="input-dark w-full px-3 py-2 rounded text-lg font-bold text-gold-500 mb-2" value="{{ dados.acordo.valor_homologado }}">
+                        <div class="flex items-center justify-between text-xs text-slate-400">
+                            <span>Fonte: <a href="#" class="text-blue-400 hover:underline">TERMO DE AUDIÊNCIA.pdf</a></span>
+                            <span class="text-slate-500">Planilha original: R$ 22.000,00</span>
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col p-3 rounded bg-slate-800/50 border border-slate-600">
+                        <div class="flex justify-between items-start mb-2">
+                            <label class="text-sm font-bold text-white">Data da Homologação</label>
+                            <span class="text-xs px-2 py-1 bg-green-900/40 text-green-400 rounded-full border border-green-800">Confiança: Alta</span>
+                        </div>
+                        <input type="text" class="input-dark w-full px-3 py-2 rounded text-sm font-medium mb-2" value="{{ dados.acordo.data_homologacao }}">
+                        <div class="text-xs text-slate-400">
+                            Fonte: <a href="#" class="text-blue-400 hover:underline">SENTENCA_HOMOLOGACAO_000000.pdf</a> (TJSC)
+                        </div>
+                    </div>
+
+                    <div class="flex flex-col p-3 rounded bg-yellow-900/20 border border-yellow-700/50">
+                        <div class="flex justify-between items-start mb-2">
+                            <label class="text-sm font-bold text-yellow-500">Vínculo do Acordo</label>
+                            <span class="text-xs px-2 py-1 bg-yellow-900/40 text-yellow-400 rounded-full border border-yellow-800">Confiança: Média</span>
+                        </div>
+                        <select class="input-dark w-full px-3 py-2 rounded text-sm font-medium mb-2">
+                            <option selected>Titular</option>
+                            <option>Agregado</option>
+                            <option>Ambos</option>
+                        </select>
+                        <div class="text-xs text-slate-400">
+                            Inferido do <a href="#" class="text-blue-400 hover:underline">DEMONSTRATIVO DE VALORES.pdf</a>. Verifique com atenção.
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <!-- COLUNA DIREITA: Pagamentos e Global Office -->
+        <div class="space-y-8">
+            
+            <!-- Saldo e Pagamentos -->
+            <section class="bg-slate-700 rounded-lg border border-slate-600 p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1 h-full bg-emerald-500"></div>
+                <h2 class="text-xl font-bold text-white mb-4 border-b border-slate-600 pb-2">3. Parcelas e Saldo</h2>
+                
+                <div class="grid grid-cols-2 gap-4 mb-4">
+                    <div class="p-3 bg-slate-800 rounded border border-slate-600">
+                        <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Negociado</div>
+                        <div class="text-lg font-bold">{{ dados.financeiro.valor_negociado }}</div>
+                        <div class="text-xs text-slate-500 mt-1">Qtd Original: {{ dados.financeiro.parcelas_originais }}x</div>
+                    </div>
+                    <div class="p-3 bg-slate-800 rounded border border-slate-600">
+                        <div class="text-xs text-slate-400 uppercase tracking-wider mb-1">Total Já Pago</div>
+                        <div class="text-lg font-bold text-emerald-400">{{ dados.financeiro.total_pago }}</div>
+                        <div class="text-xs text-slate-500 mt-1">Parcelas Pagas: {{ dados.financeiro.parcelas_pagas }}x <a href="#" class="text-blue-400 hover:underline">(ver Dropbox)</a></div>
+                    </div>
+                </div>
+
+                <div class="p-4 bg-slate-900 rounded-lg border border-slate-600 mb-4">
+                    <div class="flex justify-between items-center mb-2">
+                        <div class="text-sm text-slate-300 font-bold">SALDO RESTANTE (Para o Global Office)</div>
+                    </div>
+                    <input type="text" class="input-dark w-full px-3 py-3 rounded text-xl font-bold text-gold-500 mb-3" value="{{ dados.financeiro.saldo_restante }}">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Parcelas Restantes</label>
+                            <input type="number" class="input-dark w-full px-3 py-2 rounded text-sm font-bold" value="{{ dados.financeiro.parcelas_restantes }}">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">Valor da Parcela</label>
+                            <input type="text" class="input-dark w-full px-3 py-2 rounded text-sm font-bold" value="{{ dados.financeiro.valor_parcela }}">
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <label class="block text-xs text-slate-400 uppercase tracking-wider mb-1">1º Vencimento (Próxima parcela pendente)</label>
+                        <input type="text" class="input-dark w-full px-3 py-2 rounded text-sm font-medium" value="{{ dados.financeiro.proximo_vencimento }}">
+                    </div>
+                </div>
+            </section>
+
+            <!-- Global Office Settings -->
+            <section class="bg-slate-700 rounded-lg border border-slate-600 p-6 shadow-xl relative overflow-hidden">
+                <div class="absolute top-0 left-0 w-1 h-full bg-slate-500"></div>
+                <h2 class="text-xl font-bold text-white mb-4 border-b border-slate-600 pb-2">4. Contexto Global Office</h2>
+                
+                <div class="grid grid-cols-2 gap-4 text-sm">
+                    <div>
+                        <span class="text-slate-400 block mb-1 text-xs">Serviço:</span>
+                        <span class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200">AC COBRANÇA</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block mb-1 text-xs">Escritório:</span>
+                        <span class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200">Unidade Brasília</span>
+                    </div>
+                    <div class="col-span-2">
+                        <span class="text-slate-400 block mb-1 text-xs">Descrição do Item de Venda:</span>
+                        <span class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200 block">Prestação de serviço de cobrança/ tecnológico</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block mb-1 text-xs">Forma de Pagamento:</span>
+                        <span class="px-2 py-1 bg-slate-800 border border-slate-600 rounded text-slate-200 block">Boleto bancário (SICOOB-AC)</span>
+                    </div>
+                    <div>
+                        <span class="text-slate-400 block mb-1 text-xs">Envio Automático:</span>
+                        <span class="px-2 py-1 bg-emerald-900/40 border border-emerald-800 text-emerald-400 rounded block">E-mail (Ativado)</span>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+    </main>
+
+    <script>
+        const clienteNome = "{{ dados.cliente.nome }}";
+        const financeiro = {{ dados.financeiro | tojson | safe }};
+
+        document.getElementById('btn-aprovar').addEventListener('click', async function() {
+            this.innerHTML = '<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Gravando no Global Office...';
+            this.classList.add('opacity-75', 'cursor-not-allowed');
+            
+            try {
+                const response = await fetch('/executar_robo', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        cliente_nome: clienteNome,
+                        financeiro: financeiro
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.status === 'sucesso') {
+                    alert('Dados gravados com sucesso! ' + data.mensagem);
+                    window.location.href = '/';
+                } else {
+                    alert('Atenção: ' + data.mensagem);
+                    // Restaura botão em caso de erro (ex: bloqueado TI)
+                    this.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Confirmar & Salvar no Global Office';
+                    this.classList.remove('opacity-75', 'cursor-not-allowed');
+                }
+            } catch (error) {
+                alert('Erro de comunicação com o robô local.');
+                this.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Confirmar & Salvar no Global Office';
+                this.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        });
+    </script>
+</body>
+</html>
