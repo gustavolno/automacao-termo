@@ -27,6 +27,7 @@ async def dashboard(request: Request):
 from services.dropbox_service import DropboxService
 from services.document_service import DocumentService
 from services.calculation_service import CalculationService
+from tribunais.orquestrador import consultar_tribunal
 
 @app.get('/processar/{cliente_id}', response_class=HTMLResponse)
 async def processar_cliente(request: Request, cliente_id: int):
@@ -49,7 +50,11 @@ async def processar_cliente(request: Request, cliente_id: int):
     # 4. Calcular Saldo
     calc_dados = CalculationService.calculate_balance(termo_dados, docs.get("comprovantes", []))
     
-    # 5. Montar payload para a tela de revisão
+    # 5. Gerar Flags de Validação
+    flags_list = ValidationService.generate_flags(termo_dados, calc_dados)
+    flags = {f['campo']: f for f in flags_list}
+    
+    # 6. Montar payload para a tela de revisão
     dados_reais = {
         'cliente': {
             'nome': cliente["nome"], 
@@ -70,13 +75,60 @@ async def processar_cliente(request: Request, cliente_id: int):
             'parcelas_restantes': calc_dados.get("parcelas_restantes", 0), 
             'valor_parcela': calc_dados.get("valor_parcela", "R$ 0,00"), 
             'proximo_vencimento': 'A Calcular...'
-        }
+        },
+        'docs': docs, # Passa os documentos para linkar no front-end
+        'flags': flags
     }
     
     return templates.TemplateResponse(request=request, name="review.html", context={'dados': dados_reais})
 
+from fastapi.responses import HTMLResponse, FileResponse
+from fastapi.background import BackgroundTasks
 from pydantic import BaseModel
+import urllib.parse
 from services.globaloffice_service import GlobalOfficeService, GlobalOfficeBlockedException
+from services.validation_service import ValidationService
+from services.audit_service import AuditService
+
+@app.get('/abrir_documento')
+async def abrir_documento(caminho: str):
+    """
+    Serve um documento local diretamente no navegador.
+    O caminho deve ser absoluto.
+    """
+    caminho_decodificado = urllib.parse.unquote(caminho)
+    if os.path.exists(caminho_decodificado):
+        return FileResponse(caminho_decodificado)
+    return HTMLResponse("Arquivo não encontrado no disco local.", status_code=404)
+
+
+class TribunalPayload(BaseModel):
+    numero_processo: str
+    pasta_cliente: str
+
+@app.post('/consultar_tj')
+async def consultar_tj(payload: TribunalPayload):
+    """
+    Aciona o robô de busca no Tribunal correspondente ao processo.
+    O robô vai abrir o navegador, aguardar o login com Certificado + MFA,
+    localizar a sentença de homologação e baixar o PDF na pasta do cliente.
+    """
+    try:
+        AuditService.log_action(payload.numero_processo, "CONSULTA_TJ_INICIADA")
+        resultado = await consultar_tribunal(
+            numero_processo=payload.numero_processo,
+            pasta_cliente=payload.pasta_cliente
+        )
+        if resultado.get("erro"):
+            AuditService.log_action(payload.numero_processo, "CONSULTA_TJ_ERRO", resultado, "ERRO")
+        else:
+            AuditService.log_action(payload.numero_processo, "CONSULTA_TJ_SUCESSO", resultado)
+        return resultado
+    except Exception as e:
+        AuditService.log_action(payload.numero_processo, "CONSULTA_TJ_EXCECAO", {"erro": str(e)}, "ERRO")
+        return {"erro": str(e)}
+
+
 
 class RoboPayload(BaseModel):
     cliente_nome: str
@@ -89,12 +141,19 @@ async def executar_robo(payload: RoboPayload):
             "cliente": {"nome": payload.cliente_nome},
             "financeiro": payload.financeiro
         }
+        
+        AuditService.log_action(payload.cliente_nome, "INICIANDO_GLOBAL_OFFICE")
+        
         # Inicia a automação async no navegador
         await GlobalOfficeService.preencher_acordo(dados)
+        
+        AuditService.log_action(payload.cliente_nome, "SUCESSO_GLOBAL_OFFICE", dados)
         return {"status": "sucesso", "mensagem": "Robô finalizou o preenchimento no Global Office."}
     except GlobalOfficeBlockedException as e:
+        AuditService.log_action(payload.cliente_nome, "ERRO_BLOQUEADO_TI", {"erro": str(e)}, "ERRO")
         return {"status": "erro", "mensagem": str(e)}
     except Exception as e:
+        AuditService.log_action(payload.cliente_nome, "ERRO_DESCONHECIDO", {"erro": str(e)}, "ERRO")
         return {"status": "erro", "mensagem": f"Erro interno: {str(e)}"}
 
 if __name__ == "__main__":

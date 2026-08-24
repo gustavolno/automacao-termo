@@ -58,6 +58,10 @@
         </div>
         <div class="flex space-x-4">
             <a href="/" class="px-4 py-2 border border-slate-500 text-slate-300 hover:bg-slate-700 rounded-md transition font-medium">Cancelar / Voltar</a>
+            <button id="btn-consultar-tj" class="px-4 py-2 bg-blue-700 hover:bg-blue-600 text-white rounded-md transition font-medium shadow flex items-center space-x-2">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg>
+                <span>CONSULTAR TRIBUNAL</span>
+            </button>
             <button id="btn-aprovar" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-md transition font-medium shadow flex items-center space-x-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
                 <span>APROVAR E ENVIAR PARA O GLOBAL</span>
@@ -101,33 +105,56 @@
                 <h2 class="text-xl font-bold text-white mb-4 border-b border-slate-600 pb-2">2. Homologação & Vínculo</h2>
                 
                 <div class="space-y-4">
+                    <!-- Bloco Valor Homologado -->
+                    {% set flag_valor = dados.flags.get('valor_homologado', {}) %}
+                    {% set cor_bg_valor = 'bg-green-900/40' if flag_valor.get('nivel') == 'alta' else 'bg-yellow-900/40' if flag_valor.get('nivel') == 'media' else 'bg-red-900/40' %}
+                    {% set cor_text_valor = 'text-green-400' if flag_valor.get('nivel') == 'alta' else 'text-yellow-400' if flag_valor.get('nivel') == 'media' else 'text-red-400' %}
+                    {% set cor_border_valor = 'border-green-800' if flag_valor.get('nivel') == 'alta' else 'border-yellow-800' if flag_valor.get('nivel') == 'media' else 'border-red-800' %}
+                    
                     <div class="flex flex-col p-3 rounded bg-slate-800/50 border border-slate-600">
                         <div class="flex justify-between items-start mb-2">
                             <label class="text-sm font-bold text-white">Valor Homologado</label>
-                            <span class="text-xs px-2 py-1 bg-green-900/40 text-green-400 rounded-full border border-green-800">Confiança: Alta</span>
+                            <span class="text-xs px-2 py-1 {{ cor_bg_valor }} {{ cor_text_valor }} rounded-full border {{ cor_border_valor }}" title="{{ flag_valor.get('mensagem', '') }}">
+                                Confiança: {{ flag_valor.get('nivel', 'alta') | capitalize }}
+                            </span>
                         </div>
                         <input type="text" class="input-dark w-full px-3 py-2 rounded text-lg font-bold text-gold-500 mb-2" value="{{ dados.acordo.valor_homologado }}">
-                        <div class="flex items-center justify-between text-xs text-slate-400">
-                            <span>Fonte: <a href="#" class="text-blue-400 hover:underline">TERMO DE AUDIÊNCIA.pdf</a></span>
-                            <span class="text-slate-500">Planilha original: R$ 22.000,00</span>
+                        <div class="flex flex-col text-xs text-slate-400 space-y-1">
+                            <span>Fonte: <a href="/abrir_documento?caminho={{ dados.docs.termo }}" target="_blank" class="text-blue-400 hover:underline">TERMO DE AUDIÊNCIA.pdf</a></span>
+                            <span class="text-slate-500">Msg do Robô: {{ flag_valor.get('mensagem', '') }}</span>
                         </div>
                     </div>
 
+                    <!-- Bloco Data Homologação -->
+                    {% set flag_data = dados.flags.get('data_homologacao', {}) %}
+                    {% set cor_bg_data = 'bg-green-900/40' if flag_data.get('nivel') == 'alta' else 'bg-yellow-900/40' %}
+                    {% set cor_text_data = 'text-green-400' if flag_data.get('nivel') == 'alta' else 'text-yellow-400' %}
+                    {% set cor_border_data = 'border-green-800' if flag_data.get('nivel') == 'alta' else 'border-yellow-800' %}
                     <div class="flex flex-col p-3 rounded bg-slate-800/50 border border-slate-600">
                         <div class="flex justify-between items-start mb-2">
                             <label class="text-sm font-bold text-white">Data da Homologação</label>
-                            <span class="text-xs px-2 py-1 bg-green-900/40 text-green-400 rounded-full border border-green-800">Confiança: Alta</span>
+                            <span class="text-xs px-2 py-1 {{ cor_bg_data }} {{ cor_text_data }} rounded-full border {{ cor_border_data }}">
+                                Confiança: {{ flag_data.get('nivel', 'alta') | capitalize }}
+                            </span>
                         </div>
                         <input type="text" class="input-dark w-full px-3 py-2 rounded text-sm font-medium mb-2" value="{{ dados.acordo.data_homologacao }}">
                         <div class="text-xs text-slate-400">
-                            Fonte: <a href="#" class="text-blue-400 hover:underline">SENTENCA_HOMOLOGACAO_000000.pdf</a> (TJSC)
+                            Fonte: TJSC (Sistema Externo)
                         </div>
                     </div>
 
-                    <div class="flex flex-col p-3 rounded bg-yellow-900/20 border border-yellow-700/50">
+                    <!-- Bloco Vínculo -->
+                    {% set flag_vinc = dados.flags.get('vinculo', {}) %}
+                    {% set cor_bg_vinc = 'bg-yellow-900/40' if flag_vinc.get('nivel') == 'media' else 'bg-green-900/40' %}
+                    {% set cor_text_vinc = 'text-yellow-400' if flag_vinc.get('nivel') == 'media' else 'text-green-400' %}
+                    {% set cor_border_vinc = 'border-yellow-800' if flag_vinc.get('nivel') == 'media' else 'border-green-800' %}
+                    
+                    <div class="flex flex-col p-3 rounded {{ 'bg-yellow-900/20 border border-yellow-700/50' if flag_vinc.get('nivel') == 'media' else 'bg-slate-800/50 border border-slate-600' }}">
                         <div class="flex justify-between items-start mb-2">
-                            <label class="text-sm font-bold text-yellow-500">Vínculo do Acordo</label>
-                            <span class="text-xs px-2 py-1 bg-yellow-900/40 text-yellow-400 rounded-full border border-yellow-800">Confiança: Média</span>
+                            <label class="text-sm font-bold {{ cor_text_vinc }}">Vínculo do Acordo</label>
+                            <span class="text-xs px-2 py-1 {{ cor_bg_vinc }} {{ cor_text_vinc }} rounded-full border {{ cor_border_vinc }}">
+                                Confiança: {{ flag_vinc.get('nivel', 'media') | capitalize }}
+                            </span>
                         </div>
                         <select class="input-dark w-full px-3 py-2 rounded text-sm font-medium mb-2">
                             <option selected>Titular</option>
@@ -135,7 +162,7 @@
                             <option>Ambos</option>
                         </select>
                         <div class="text-xs text-slate-400">
-                            Inferido do <a href="#" class="text-blue-400 hover:underline">DEMONSTRATIVO DE VALORES.pdf</a>. Verifique com atenção.
+                            {{ flag_vinc.get('mensagem', '') }}
                         </div>
                     </div>
                 </div>
@@ -220,8 +247,49 @@
 
     <script>
         const clienteNome = "{{ dados.cliente.nome }}";
+        const numeroProcesso = "{{ dados.cliente.processo }}";
+        const pastaCliente = "{{ dados.docs.pasta_cliente | default('') }}";
         const financeiro = {{ dados.financeiro | tojson | safe }};
 
+        // === BOTÃO CONSULTAR TRIBUNAL ===
+        document.getElementById('btn-consultar-tj').addEventListener('click', async function() {
+            const btnTj = this;
+            btnTj.innerHTML = '<svg class="animate-spin w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Aguardando login...';
+            btnTj.classList.add('opacity-75', 'cursor-not-allowed');
+            
+            try {
+                const response = await fetch('/consultar_tj', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        numero_processo: numeroProcesso,
+                        pasta_cliente: pastaCliente
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.erro) {
+                    alert('⚠️ Erro ao consultar o Tribunal:\n' + data.erro);
+                } else {
+                    const msg = [
+                        '✅ Consulta ao Tribunal realizada com sucesso!',
+                        '',
+                        '📅 Data de Homologação: ' + (data.data_homologacao || 'Não encontrada'),
+                        '📄 Arquivo salvo: ' + (data.arquivo_baixado || 'Não baixado'),
+                    ].join('\n');
+                    alert(msg);
+                    // Recarrega para atualizar a data de homologação na tela
+                    window.location.reload();
+                }
+            } catch (error) {
+                alert('Erro de comunicação com o robô do Tribunal.');
+            } finally {
+                btnTj.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path></svg> CONSULTAR TRIBUNAL';
+                btnTj.classList.remove('opacity-75', 'cursor-not-allowed');
+            }
+        });
+
+        // === BOTÃO APROVAR → GLOBAL OFFICE ===
         document.getElementById('btn-aprovar').addEventListener('click', async function() {
             this.innerHTML = '<svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Gravando no Global Office...';
             this.classList.add('opacity-75', 'cursor-not-allowed');
@@ -242,7 +310,6 @@
                     window.location.href = '/';
                 } else {
                     alert('Atenção: ' + data.mensagem);
-                    // Restaura botão em caso de erro (ex: bloqueado TI)
                     this.innerHTML = '<svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg> Confirmar & Salvar no Global Office';
                     this.classList.remove('opacity-75', 'cursor-not-allowed');
                 }
