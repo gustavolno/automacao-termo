@@ -16,6 +16,7 @@ _ROOT = os.path.dirname(_HERE)
 sys.path.insert(0, _HERE)                                     # juriscalc/
 sys.path.insert(0, os.path.join(_ROOT, "compartilhado"))     # compartilhado/
 
+# pyrefly: ignore [missing-import]
 from logo_b64 import LOGO_B64
 
 import base64
@@ -97,7 +98,7 @@ class JurisCalcApp(tk.Tk):
         tk.Label(lf, text="ALDRIGUES CÂNDIDO", font=FONT_BRAND, bg=BG_NAV, fg=TEXT_BRIGHT).pack(anchor="w")
         tk.Label(lf, text="ADVOCACIA  |  ROBÔ JURISCALC", font=FONT_SMALL, bg=BG_NAV, fg=TEXT_MUTED).pack(anchor="w")
 
-        tk.Label(header, text="🤖  JurisCalc Automático", font=FONT_TITLE, bg=BG_NAV, fg=CYAN).pack(side="right", padx=16)
+        tk.Label(header, text="🤖 JurisCalc Automático", font=FONT_TITLE, bg=BG_NAV, fg=CYAN).pack(side="right", padx=16)
 
         # ── CORPO ───────────────────────────────────────────────
         body = tk.Frame(self, bg=BG_MAIN, padx=20, pady=16)
