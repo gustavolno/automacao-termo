@@ -56,15 +56,18 @@ def normalizar_texto(texto: str) -> str:
 
 def formatar_nome_arquivo_boleto(vencimento_str: str, eh_entrada: bool = False, **kwargs) -> str:
     """
-    Padrão Cronológico ISO Corporativo:
-    - Parcela Comum: BOLETO - 2026-10 (OUT).pdf
-    - Parcela Entrada: BOLETO - ENTRADA - 2026-10 (OUT).pdf
+    Formato limpo e legível:
+    - Parcela Comum:   BOLETO - SET 2027.pdf
+    - Parcela Entrada: BOLETO - ENTRADA - SET 2027.pdf
+
+    Nota: a ordem cronológica na pasta é garantida pelo robô que processa
+    e salva os boletos já ordenados por data de vencimento.
     """
     partes = vencimento_str.strip().split("/")
     if len(partes) == 3:
         dia, mes_num, ano = partes[0], partes[1], partes[2]
         mes_txt = MESES_PT.get(mes_num, mes_num)
-        sufixo_data = f"{ano}-{mes_num} ({mes_txt})"
+        sufixo_data = f"{mes_txt} {ano}"
     else:
         sufixo_data = vencimento_str.replace("/", "-")
 

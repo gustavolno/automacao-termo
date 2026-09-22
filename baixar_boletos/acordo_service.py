@@ -329,31 +329,32 @@ class AcordoService:
 
         try:
             # 1. BLOCO REGISTRO
-            # Aguarda modal carregar completamente antes de verificar campos
-            self.page.wait_for_timeout(800)
+            # Aguarda modal carregar completamente
+            self.page.wait_for_timeout(1500)
 
-            # Processo: verifica via JS (sem race condition do atributo HTML)
+            # Processo: tenta preencher com timeout curto.
+            # Se o campo for readonly (qualquer motivo), simplesmente pula.
             input_proc = modal.locator("#EDTPROCESSO").first
             if input_proc.is_visible():
-                is_readonly = self.page.evaluate(
-                    "() => { const el = document.getElementById('EDTPROCESSO'); "
-                    "return el ? el.readOnly : true; }"
-                )
-                val_proc = input_proc.input_value().strip()
-                if is_readonly:
-                    self.log(f"Campo EDTPROCESSO readonly (valor: '{val_proc}'). Pulando preenchimento.")
-                elif not val_proc and dados.get('processo'):
-                    self.log(f"Preenchendo Processo: {dados['processo']}")
-                    # Usa JavaScript para preencher, evitando rejeição de fill() em campos especiais
-                    proc_val = dados['processo']
-                    self.page.evaluate(
-                        f"() => {{ const el = document.getElementById('EDTPROCESSO'); "
-                        f"if (el && !el.readOnly) {{ el.value = '{proc_val}'; "
-                        f"el.dispatchEvent(new Event('input', {{bubbles:true}})); "
-                        f"el.dispatchEvent(new Event('change', {{bubbles:true}})); }} }}"
-                    )
-                else:
-                    self.log(f"Processo confirmado no modal: '{val_proc}'.")
+                val_proc = ""
+                try:
+                    val_proc = input_proc.input_value(timeout=3000).strip()
+                except Exception:
+                    pass
+
+                if val_proc:
+                    self.log(f"Processo já preenchido no modal: '{val_proc}'.")
+                elif dados.get('processo'):
+                    self.log(f"Tentando preencher Processo: {dados['processo']}")
+                    try:
+                        input_proc.fill(dados['processo'], timeout=3000)
+                        self.log(f"Processo preenchido: {dados['processo']}")
+                    except Exception:
+                        # Campo readonly — normal para devedores já vinculados
+                        self.log(
+                            f"Campo EDTPROCESSO não editável (readonly). "
+                            f"Sistema manterá o processo vinculado ao devedor."
+                        )
             # Data de registro (garante data atual se vazia)
             input_dt_reg = modal.locator("#EDTDATAREGISTRO").first
             if input_dt_reg.is_visible() and not input_dt_reg.input_value().strip():
