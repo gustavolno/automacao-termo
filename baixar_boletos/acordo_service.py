@@ -257,13 +257,43 @@ class AcordoService:
                 self.log(f"O devedor '{nome_cliente}' JÁ POSSUI ACORDO CADASTRADO no sistema (registro confirmado com sucesso).", "SUCCESS")
                 return None
 
-            btn_acordo = linha.locator(
-                "button:has(i.fa-handshake-o), button:has(i.fa-handshake), "
-                "button[title*='Registrar o acordo' i]"
-            ).first
+            btn_acordo = None
 
-            if not btn_acordo.is_visible():
-                btn_acordo = linha.locator("button").nth(3)
+            # Tenta por seletores de ícone (fa-handshake-o, fa-handshake)
+            for sel in [
+                "button:has(i.fa-handshake-o)",
+                "button:has(i.fa-handshake)",
+                "button[title*='acordo' i]",
+                "button[title*='Registrar' i]",
+                "button[onclick*='acordo' i]",
+            ]:
+                try:
+                    candidate = linha.locator(sel).first
+                    if candidate.is_visible(timeout=500) and candidate.is_enabled():
+                        btn_acordo = candidate
+                        self.log(f"Botão de acordo localizado via seletor: {sel}")
+                        break
+                except Exception:
+                    continue
+
+            # Fallback: inspeciona HTML da linha para achar o botão correto
+            if btn_acordo is None:
+                try:
+                    html_linha = linha.evaluate("e => e.innerHTML")
+                    botoes = linha.locator("button").all()
+                    self.log(f"Inspecionando {len(botoes)} botões na linha (fallback)...")
+                    for i, btn in enumerate(botoes):
+                        try:
+                            btn_html = btn.evaluate("e => e.outerHTML").lower()
+                            if any(k in btn_html for k in ["handshake", "acordo", "registr"]):
+                                if btn.is_visible() and btn.is_enabled():
+                                    btn_acordo = btn
+                                    self.log(f"Botão de acordo encontrado no fallback (botão #{i})")
+                                    break
+                        except Exception:
+                            continue
+                except Exception:
+                    pass
 
             if btn_acordo and btn_acordo.is_visible() and btn_acordo.is_enabled():
                 btn_acordo.click()
@@ -274,8 +304,14 @@ class AcordoService:
                 self.log("Formulário 'INCLUSÃO DE ACORDOS JUDICIAIS' aberto com sucesso!")
                 return True
             else:
+                # Log do HTML da linha para diagnóstico
+                try:
+                    html_diag = linha.evaluate("e => e.innerHTML")
+                    self.log(f"HTML da linha (diagnóstico): {html_diag[:300]}", "WARNING")
+                except Exception:
+                    pass
                 self.log("Botão de mãos dadas não localizado ou desabilitado na linha do devedor.", "ERROR")
-                return False
+                return False                return False
 
         except Exception as e:
             self.log(f"Erro ao abrir modal de acordos: {e}", "ERROR")
@@ -293,20 +329,31 @@ class AcordoService:
 
         try:
             # 1. BLOCO REGISTRO
-            # Processo: se vier vazio no modal, preenche com o do parser
+            # Aguarda modal carregar completamente antes de verificar campos
+            self.page.wait_for_timeout(800)
+
+            # Processo: verifica via JS (sem race condition do atributo HTML)
             input_proc = modal.locator("#EDTPROCESSO").first
             if input_proc.is_visible():
-                # Verifica se o campo está readonly (acordo já existente no sistema)
-                is_readonly = input_proc.get_attribute("readonly") is not None
+                is_readonly = self.page.evaluate(
+                    "() => { const el = document.getElementById('EDTPROCESSO'); "
+                    "return el ? el.readOnly : true; }"
+                )
                 val_proc = input_proc.input_value().strip()
                 if is_readonly:
-                    self.log(f"Campo EDTPROCESSO está readonly (valor atual: {val_proc}). Pulando preenchimento.")
+                    self.log(f"Campo EDTPROCESSO readonly (valor: '{val_proc}'). Pulando preenchimento.")
                 elif not val_proc and dados.get('processo'):
                     self.log(f"Preenchendo Processo: {dados['processo']}")
-                    input_proc.fill(dados['processo'])
+                    # Usa JavaScript para preencher, evitando rejeição de fill() em campos especiais
+                    proc_val = dados['processo']
+                    self.page.evaluate(
+                        f"() => {{ const el = document.getElementById('EDTPROCESSO'); "
+                        f"if (el && !el.readOnly) {{ el.value = '{proc_val}'; "
+                        f"el.dispatchEvent(new Event('input', {{bubbles:true}})); "
+                        f"el.dispatchEvent(new Event('change', {{bubbles:true}})); }} }}"
+                    )
                 else:
-                    self.log(f"Processo confirmado no modal: {val_proc}")
-
+                    self.log(f"Processo confirmado no modal: '{val_proc}'.")
             # Data de registro (garante data atual se vazia)
             input_dt_reg = modal.locator("#EDTDATAREGISTRO").first
             if input_dt_reg.is_visible() and not input_dt_reg.input_value().strip():
