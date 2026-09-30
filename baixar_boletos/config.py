@@ -1,4 +1,5 @@
-﻿import os
+from typing import Optional
+import os
 import re
 import unicodedata
 from pathlib import Path
@@ -56,18 +57,15 @@ def normalizar_texto(texto: str) -> str:
 
 def formatar_nome_arquivo_boleto(vencimento_str: str, eh_entrada: bool = False, **kwargs) -> str:
     """
-    Formato limpo e legível:
-    - Parcela Comum:   BOLETO - SET 2027.pdf
-    - Parcela Entrada: BOLETO - ENTRADA - SET 2027.pdf
-
-    Nota: a ordem cronológica na pasta é garantida pelo robô que processa
-    e salva os boletos já ordenados por data de vencimento.
+    Padrão Cronológico ISO Corporativo:
+    - Parcela Comum: BOLETO - 2026-10 (OUT).pdf
+    - Parcela Entrada: BOLETO - ENTRADA - 2026-10 (OUT).pdf
     """
     partes = vencimento_str.strip().split("/")
     if len(partes) == 3:
         dia, mes_num, ano = partes[0], partes[1], partes[2]
         mes_txt = MESES_PT.get(mes_num, mes_num)
-        sufixo_data = f"{mes_txt} {ano}"
+        sufixo_data = f"{ano}-{mes_num} ({mes_txt})"
     else:
         sufixo_data = vencimento_str.replace("/", "-")
 
@@ -75,15 +73,58 @@ def formatar_nome_arquivo_boleto(vencimento_str: str, eh_entrada: bool = False, 
         return f"BOLETO - ENTRADA - {sufixo_data}.pdf"
     return f"BOLETO - {sufixo_data}.pdf"
 
-def obter_pasta_boletos_cliente(nome_cliente: str) -> Path:
+PASTA_ACORDOS_PADRAO = Path(r"C:\Users\Cob_Geap_05082026\Dropbox\COBRANÇA NEGOCIAÇÃO\ADMINISTRATIVO- COBRANÇA\ACOMPANHAMENTO DE ACORDOS AC COBRANÇA")
+PASTA_ACORDOS_JURIDICO = Path(r"C:\Users\Cob_Geap_05082026\Dropbox\COBRANÇA NEGOCIAÇÃO\ADMINISTRATIVO- COBRANÇA\ACOMPANHAMENTO DE ACORDOS - JURÍDICO")
+
+def obter_pasta_boletos_cliente(nome_cliente: str, eh_audiencia: Optional[bool] = None, eh_juridico: Optional[bool] = None) -> Path:
     """
     Localiza ou cria a pasta de destino dos boletos do cliente no Dropbox:
-    ...\Dropbox\COBRANÇA NEGOCIAÇÃO\ADMINISTRATIVO- COBRANÇA\ACOMPANHAMENTO DE ACORDOS AC COBRANÇA\<CLIENTE>\BOLETOS DO ACORDO
+    - O que não for FECHADO AC COBRANÇA: ...\ACOMPANHAMENTO DE ACORDOS - JURÍDICO\<CLIENTE>\BOLETOS DO ACORDO
+    - FECHADO AC COBRANÇA: ...\ACOMPANHAMENTO DE ACORDOS AC COBRANÇA\<CLIENTE>\BOLETOS DO ACORDO
     """
     nome_norm = normalizar_texto(nome_cliente)
     nome_pasta_cliente = nome_cliente.strip().upper()
 
-    # 1. Caminho direto mais comum para agilidade e precisão
+    if eh_juridico is None:
+        eh_juridico = eh_audiencia
+
+    # 1. Se for Acordo Jurídico (não FECHADO AC COBRANÇA)
+    if eh_juridico is True and PASTA_ACORDOS_JURIDICO.exists():
+        pasta_alvo = None
+        for p in PASTA_ACORDOS_JURIDICO.iterdir():
+            if p.is_dir() and normalizar_texto(p.name) == nome_norm:
+                pasta_alvo = p
+                break
+        if not pasta_alvo:
+            pasta_alvo = PASTA_ACORDOS_JURIDICO / nome_pasta_cliente
+            pasta_alvo.mkdir(parents=True, exist_ok=True)
+        dest = pasta_alvo / "BOLETOS DO ACORDO"
+        dest.mkdir(parents=True, exist_ok=True)
+        return dest
+
+    # 2. Se for explicitamente AC COBRANÇA
+    if eh_juridico is False and PASTA_ACORDOS_PADRAO.exists():
+        pasta_alvo = None
+        for p in PASTA_ACORDOS_PADRAO.iterdir():
+            if p.is_dir() and normalizar_texto(p.name) == nome_norm:
+                pasta_alvo = p
+                break
+        if not pasta_alvo:
+            pasta_alvo = PASTA_ACORDOS_PADRAO / nome_pasta_cliente
+            pasta_alvo.mkdir(parents=True, exist_ok=True)
+        dest = pasta_alvo / "BOLETOS DO ACORDO"
+        dest.mkdir(parents=True, exist_ok=True)
+        return dest
+
+    # 3. Se eh_audiencia não informado (None): se já existe no JURÍDICO, direciona para lá
+    if PASTA_ACORDOS_JURIDICO.exists():
+        for p in PASTA_ACORDOS_JURIDICO.iterdir():
+            if p.is_dir() and normalizar_texto(p.name) == nome_norm:
+                dest = p / "BOLETOS DO ACORDO"
+                dest.mkdir(parents=True, exist_ok=True)
+                return dest
+
+    # 4. Caminho direto mais comum para agilidade e precisão
     direto = Path(r"C:\Users\Cob_Geap_05082026\Dropbox\COBRANÇA NEGOCIAÇÃO\ADMINISTRATIVO- COBRANÇA\ACOMPANHAMENTO DE ACORDOS AC COBRANÇA")
     if direto.exists():
         pasta_alvo = None

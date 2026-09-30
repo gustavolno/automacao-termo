@@ -19,6 +19,7 @@ class DadosAcordo:
     cpf: str = ""
     processo: str = ""
     matricula: str = ""
+    tipo_vinculo: str = "Titular"
     telefone: str = ""
     email: str = ""
     endereco: str = ""
@@ -182,9 +183,39 @@ def processar_demonstrativo(texto: str) -> dict:
         if len(d) == 11:
             res["cpf"] = f"{d[:3]}.{d[3:6]}.{d[6:9]}-{d[9:]}"
 
-    m_mat = re.search(r"(?i)Matr[ií]cula(?:\s+do\s+Titular)?\s*:?\s*([A-Z0-9]+)", texto)
-    if m_mat:
-        res["matricula"] = m_mat.group(1).strip()
+    # Reconhecimento inteligente: Titular vs Agregado / Dependente
+    res["tipo_vinculo"] = "Titular"
+    res["matricula_titular"] = ""
+    res["matricula_agregado"] = ""
+
+    m_agr = re.search(r"(?i)(?:Matr[ií]cula(?:\s+do\s+)?Agregado|Agregado|Dependente)\s*:?\s*([A-Z0-9]+)", texto)
+    m_tit = re.search(r"(?i)Matr[ií]cula(?:\s+do\s+Titular)?\s*:?\s*([A-Z0-9]+)", texto)
+    m_tit_dir = re.search(r"(?i)Titular\s*:?\s*([A-Z0-9]+)", texto)
+
+    mat_titular = ""
+    if m_tit:
+        mat_titular = m_tit.group(1).strip()
+    elif m_tit_dir:
+        mat_titular = m_tit_dir.group(1).strip()
+
+    mat_agregado = ""
+    if m_agr:
+        mat_agregado = m_agr.group(1).strip()
+
+    res["matricula_titular"] = mat_titular
+    res["matricula_agregado"] = mat_agregado
+
+    if mat_agregado:
+        res["tipo_vinculo"] = "Agregado"
+        res["matricula"] = mat_agregado
+    elif mat_titular:
+        res["tipo_vinculo"] = "Titular"
+        res["matricula"] = mat_titular
+    else:
+        m_mat_gen = re.search(r"(?i)Matr[ií]cula\s*:?\s*([A-Z0-9]+)", texto)
+        if m_mat_gen:
+            res["matricula"] = m_mat_gen.group(1).strip()
+            res["tipo_vinculo"] = "Titular" 
 
     m_vc = re.search(r"(?i)Valor\s+da\s+causa\s*:?\s*R?\$?\s*([\d\.,]+)", texto)
     if m_vc:
@@ -590,6 +621,12 @@ def interpretar_mensagem(texto_bruto: str) -> Dict[str, str]:
         if m_mat_nat:
             dados.matricula = m_mat_nat.group(1).strip()
 
+
+    # VINCULO (TITULAR OU AGREGADO)
+    if re.search(r"(?i)\bagregado\b", texto):
+        dados.tipo_vinculo = "Agregado"
+    elif re.search(r"(?i)\btitular\b", texto):
+        dados.tipo_vinculo = "Titular"
     # TELEFONE
     if "telefone" in rotulos_dict and rotulos_dict["telefone"]:
         dados.telefone = extrair_telefones(rotulos_dict["telefone"], dados.cpf)

@@ -1,4 +1,5 @@
-﻿import os
+from typing import Optional
+import os
 import sys
 import threading
 import queue
@@ -91,8 +92,8 @@ class AppBaixarBoletos(tk.Tk):
         super().__init__()
         self.title("Central de Download & Organização de Boletos (Global Office / Dropbox) — Aldrigues Cândido Advocacia")
         self.configure(bg=BG_MAIN)
-        self.geometry("920x650")
-        self.minsize(840, 580)
+        self.geometry("980x670")
+        self.minsize(880, 600)
 
         aplicar_tema_titulo_claro(self)
 
@@ -110,7 +111,7 @@ class AppBaixarBoletos(tk.Tk):
 
     def _centralizar(self):
         self.update_idletasks()
-        w, h = 920, 650
+        w, h = 980, 670
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
         self.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
         aplicar_tema_titulo_claro(self)
@@ -185,57 +186,64 @@ class AppBaixarBoletos(tk.Tk):
         container.pack(fill="both", expand=True)
 
         # ── 3. CARD DE BUSCA DO CLIENTE ──
-        card_busca = tk.Frame(container, bg=BG_PANEL, highlightthickness=1, highlightbackground=BORDER_COLOR, padx=18, pady=16)
+        card_busca = tk.Frame(container, bg=BG_PANEL, highlightthickness=1, highlightbackground=BORDER_COLOR, padx=18, pady=14)
         card_busca.pack(fill="x", pady=(0, 14))
 
-        lbl_cliente = tk.Label(card_busca, text="NOME COMPLETO DO CLIENTE:", font=FONT_UI_BOLD, bg=BG_PANEL, fg=TEXT_MUTED)
-        lbl_cliente.grid(row=0, column=0, sticky="w", pady=(0, 6))
+        # Cabeçalho da busca: Rótulo à esquerda e Checkbox à direita
+        header_busca = tk.Frame(card_busca, bg=BG_PANEL)
+        header_busca.pack(fill="x", pady=(0, 6))
 
+        lbl_cliente = tk.Label(header_busca, text="NOME COMPLETO DO CLIENTE:", font=FONT_UI_BOLD, bg=BG_PANEL, fg=TEXT_MUTED)
+        lbl_cliente.pack(side="left")
+
+        self.var_visivel = tk.BooleanVar(value=False)
+        self.chk_visivel = tk.Checkbutton(header_busca, text="Exibir janela do navegador durante a captura",
+                                          variable=self.var_visivel, font=FONT_UI, bg=BG_PANEL, fg=TEXT_MUTED,
+                                          selectcolor=BG_INPUT, activebackground=BG_PANEL,
+                                          activeforeground=TEXT_MAIN, highlightthickness=0)
+        self.chk_visivel.pack(side="right")
+
+        # Campo de entrada: Ocupa toda a largura do Card
         self.var_cliente = tk.StringVar()
         self.entry_cliente = tk.Entry(card_busca, textvariable=self.var_cliente, font=("Segoe UI", 11),
                                       bg=BG_INPUT, fg=TEXT_MAIN, insertbackground=TEXT_MAIN,
                                       relief="flat", highlightthickness=1, highlightbackground=BORDER_COLOR)
-        self.entry_cliente.grid(row=1, column=0, sticky="ew", padx=(0, 12), ipady=6)
-        card_busca.columnconfigure(0, weight=1)
+        self.entry_cliente.pack(fill="x", ipady=6, pady=(0, 12))
+
+        # Barra de Botões de Ação
+        acoes_frame = tk.Frame(card_busca, bg=BG_PANEL)
+        acoes_frame.pack(fill="x")
 
         # Botão Âmbar Suave: BAIXAR BOLETOS
-        self.btn_baixar = tk.Button(card_busca, text="⬇ BAIXAR BOLETOS", font=FONT_UI_BOLD,
+        self.btn_baixar = tk.Button(acoes_frame, text="⬇ BAIXAR BOLETOS", font=FONT_UI_BOLD,
                                     bg=ACCENT_AMBER, fg="#FFFFFF", activebackground=ACCENT_AMBER_HOVER,
-                                    activeforeground="#FFFFFF", relief="flat", cursor="hand2", padx=18, pady=7,
+                                    activeforeground="#FFFFFF", relief="flat", cursor="hand2", padx=16, pady=7,
                                     command=self.iniciar_download)
-        self.btn_baixar.grid(row=1, column=1, padx=(0, 8))
-
-        # Botão Verde Oliva: ABRIR NO DROPBOX
-        self.btn_dropbox = tk.Button(card_busca, text="📁 ABRIR NO DROPBOX", font=FONT_UI_BOLD,
-                                     bg=ACCENT_OLIVE, fg="#FFFFFF", activebackground=ACCENT_OLIVE_HOVER,
-                                     activeforeground="#FFFFFF", relief="flat", cursor="hand2", padx=14, pady=7,
-                                     command=self.abrir_pasta_dropbox)
-        self.btn_dropbox.grid(row=1, column=2, padx=(0, 8))
+        self.btn_baixar.pack(side="left", padx=(0, 8))
 
         # Botão Azul Corporativo: SUBIR ACORDO JUDICIAL (Apenas Parcelados)
-        self.btn_subir_acordo = tk.Button(card_busca, text="🤝 SUBIR ACORDO JUDICIAL", font=FONT_UI_BOLD,
+        self.btn_subir_acordo = tk.Button(acoes_frame, text="🤝 SUBIR ACORDO JUDICIAL", font=FONT_UI_BOLD,
                                           bg=ACCENT_NAVY, fg="#FFFFFF", activebackground=ACCENT_NAVY_HOVER,
                                           activeforeground="#FFFFFF", relief="flat", cursor="hand2", padx=16, pady=7,
                                           command=self.iniciar_subir_acordo)
-        self.btn_subir_acordo.grid(row=1, column=3, padx=(0, 4))
+        self.btn_subir_acordo.pack(side="left", padx=(0, 8))
+
+        # Botão Verde Oliva: ABRIR NO DROPBOX
+        self.btn_dropbox = tk.Button(acoes_frame, text="📁 ABRIR NO DROPBOX", font=FONT_UI_BOLD,
+                                     bg=ACCENT_OLIVE, fg="#FFFFFF", activebackground=ACCENT_OLIVE_HOVER,
+                                     activeforeground="#FFFFFF", relief="flat", cursor="hand2", padx=14, pady=7,
+                                     command=self.abrir_pasta_dropbox)
+        self.btn_dropbox.pack(side="left", padx=(0, 8))
 
         # Botão roxo: PROCESSAR TODOS OS PARCELADOS
         self.btn_todos_parcelados = tk.Button(
-            card_busca, text="📋 PROCESSAR TODOS OS PARCELADOS",
+            acoes_frame, text="📋 PROCESSAR TODOS OS PARCELADOS",
             font=FONT_UI_BOLD, bg="#5B4A8A", fg="#FFFFFF",
             activebackground="#483A72", activeforeground="#FFFFFF",
-            relief="flat", cursor="hand2", padx=12, pady=7,
+            relief="flat", cursor="hand2", padx=14, pady=7,
             command=self.iniciar_todos_parcelados
         )
-        self.btn_todos_parcelados.grid(row=1, column=4, padx=(0, 4))
-
-        # Checkbox discreto
-        self.var_visivel = tk.BooleanVar(value=False)
-        self.chk_visivel = tk.Checkbutton(card_busca, text="Exibir janela do navegador durante a captura",
-                                          variable=self.var_visivel, font=FONT_UI, bg=BG_PANEL, fg=TEXT_MUTED,
-                                          selectcolor=BG_INPUT, activebackground=BG_PANEL,
-                                          activeforeground=TEXT_MAIN, highlightthickness=0)
-        self.chk_visivel.grid(row=2, column=0, sticky="w", pady=(8, 0))
+        self.btn_todos_parcelados.pack(side="right")
 
         # self.entry_cliente.bind("<Return>", lambda event: self.iniciar_download()) # Evita acionamento acidental
 
@@ -325,8 +333,11 @@ class AppBaixarBoletos(tk.Tk):
 
         self.tree_boletos.bind("<Double-1>", self._abrir_boleto_selecionado)
 
-    def log(self, mensagem: str):
-        self.log_queue.put(mensagem)
+    def log(self, mensagem: str, nivel: Optional[str] = None):
+        if nivel and nivel != "INFO" and not mensagem.startswith(f"[{nivel}]"):
+            self.log_queue.put(f"[{nivel}] {mensagem}")
+        else:
+            self.log_queue.put(mensagem)
 
     def _processar_fila_logs(self):
         while not self.log_queue.empty():
@@ -544,21 +555,58 @@ class AppBaixarBoletos(tk.Tk):
                 self.barra_progresso.config(mode="determinate", value=int((idx / total) * 100)),
             ))
 
-            self.log(f"--- [{i}/{total}] Iniciando: {nome} ---")
+            # 1. Validação de boletos na pasta do Dropbox antes de abrir navegador
+            status_boletos = service.verificar_boletos_completos(nome)
+            if status_boletos["completo"]:
+                pulo_count += 1
+                self.log(
+                    f"[{i}/{total}] PULANDO '{nome}': Já contém todos os {status_boletos['encontrados']}/{status_boletos['esperados']} "
+                    f"boletos correspondentes às parcelas da planilha.",
+                    "INFO"
+                )
+                continue
+
+            # 2. Se faltar algum boleto ou a pasta estiver vazia, executa normalmente
+            if status_boletos.get("esperados", 0) > 0 and status_boletos.get("encontrados", 0) > 0:
+                self.log(f"[{i}/{total}] '{nome}' possui {status_boletos['encontrados']}/{status_boletos['esperados']} boletos (incompleto). Processando...")
+            else:
+                self.log(f"--- [{i}/{total}] Iniciando: {nome} ---")
+
             try:
-                ok = service.subir_acordo_completo(nome, visivel=visivel)
-                if ok:
-                    sucesso_count += 1
-                    self.log(f"[{i}/{total}] SUCESSO: {nome}", "SUCCESS")
+                # ETAPA 1: Subir Acordo Judicial no sistema
+                self.log(f"[{i}/{total}] Etapa 1/2: Subindo acordo de '{nome}'...")
+                ok_acordo = service.subir_acordo_completo(nome, visivel=visivel)
+                
+                if ok_acordo:
+                    self.log(f"[{i}/{total}] Acordo de '{nome}' registrado com sucesso! Iniciando download dos boletos...")
+                    
+                    # ETAPA 2: Baixar boletos do cliente recém-cadastrado
+                    self.log(f"[{i}/{total}] Etapa 2/2: Baixando boletos de '{nome}'...")
+                    from baixar_boletos.downloader_service import DownloaderService
+                    dl_service = DownloaderService(log_callback=self.log)
+                    
+                    try:
+                        # Reutiliza a mesma página do Playwright se estiver aberta para máxima agilidade
+                        res_dl = dl_service.baixar_boletos_cliente(
+                            nome,
+                            visivel=visivel,
+                            page_existente=service.page if service.page and not service.page.is_closed() else None
+                        )
+                        total_baixados = res_dl.get("total_baixados", 0)
+                        self.log(f"[{i}/{total}] SUCESSO COMPLETO: '{nome}' teve o acordo cadastrado e {total_baixados} boletos baixados!", "SUCCESS")
+                        sucesso_count += 1
+                    except Exception as ex_dl:
+                        self.log(f"[{i}/{total}] Acordo de '{nome}' foi enviado, mas houve erro ao baixar boletos: {ex_dl}", "WARNING")
+                        sucesso_count += 1
                 else:
                     erro_count += 1
-                    self.log(f"[{i}/{total}] FALHOU ou ignorado: {nome}", "WARNING")
+                    self.log(f"[{i}/{total}] FALHOU ao subir acordo de: {nome}", "WARNING")
             except Exception as ex:
                 erro_count += 1
                 self.log(f"[{i}/{total}] ERRO inesperado em '{nome}': {ex}", "ERROR")
 
         service.fechar_sessao()
-        resumo = f"Lote concluído: {sucesso_count} enviados, {erro_count} com falha, de {total} total."
+        resumo = f"Lote concluído: {sucesso_count} processados, {pulo_count} pulados (já prontos), {erro_count} com falha, de {total} total."
         self.log(resumo)
         self.after(0, lambda: self.lbl_status_progresso.config(text=resumo, fg=TEXT_MAIN))
         self.after(0, self._reset_btn_lote)
@@ -610,14 +658,14 @@ class AppBaixarBoletos(tk.Tk):
         """Abre modal seguro para gerenciar o login exclusivo desta máquina."""
         janela = tk.Toplevel(self)
         janela.title("Configurar Meu Login - Global Office")
-        janela.geometry("460x360")
+        janela.geometry("460x420")
         janela.resizable(False, False)
         janela.configure(bg=BG_MAIN)
         janela.transient(self)
         janela.grab_set()
 
         sw, sh = self.winfo_screenwidth(), self.winfo_screenheight()
-        janela.geometry(f"460x360+{(sw-460)//2}+{(sh-360)//2}")
+        janela.geometry(f"460x420+{(sw-460)//2}+{(sh-420)//2}")
 
         frame = tk.Frame(janela, bg=BG_MAIN, padx=24, pady=20)
         frame.pack(fill="both", expand=True)
@@ -668,8 +716,34 @@ class AppBaixarBoletos(tk.Tk):
                                bg=ACCENT_AMBER, fg="#FFFFFF", activebackground=ACCENT_AMBER_HOVER,
                                activeforeground="#FFFFFF", relief="flat", cursor="hand2", padx=16, pady=8,
                                command=salvar)
-        btn_salvar.pack(fill="x")
+        btn_salvar.pack(fill="x", pady=(0, 10))
 
-if __name__ == "__main__":
+        def encerrar_sessao():
+            from pathlib import Path
+            from baixar_boletos.config import STATE_FILE
+            Path(STATE_FILE).unlink(missing_ok=True)
+            Path('globaloffice_state.json').unlink(missing_ok=True)
+            if hasattr(self, 'service') and self.service:
+                try:
+                    self.service.fechar_sessao()
+                except Exception: pass
+            messagebox.showinfo(
+                "Sessão Encerrada",
+                "A sessão do Global Office foi encerrada com sucesso!\n\n"
+                "Na próxima pesquisa, a automação iniciará uma nova sessão do zero.",
+                parent=janela
+            )
+            janela.destroy()
+
+        btn_encerrar = tk.Button(frame, text="🔴 Encerrar Sessão Ativa / Novo Login", font=("Segoe UI", 9, "bold"),
+                                 bg="#DC3545", fg="#FFFFFF", activebackground="#C82333",
+                                 activeforeground="#FFFFFF", relief="flat", cursor="hand2", padx=16, pady=6,
+                                 command=encerrar_sessao)
+        btn_encerrar.pack(fill="x")
+
+def main():
     app = AppBaixarBoletos()
     app.mainloop()
+
+if __name__ == "__main__":
+    main()

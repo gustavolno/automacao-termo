@@ -129,7 +129,14 @@ class DownloaderService:
             self.page.on("dialog", lambda dialog: dialog.accept())
 
             try:
-                self.page.goto(GLOBAL_OFFICE_URL, timeout=60000)
+                resp = self.page.goto(GLOBAL_OFFICE_URL, timeout=60000)
+                if resp and resp.status >= 400:
+                    self.log(f"Sessão expirada no servidor (HTTP {resp.status}). Solicitando novo login...", "WARNING")
+                    if self.context: self.context.close()
+                    if self.browser: self.browser.close()
+                    Path(STATE_FILE).unlink(missing_ok=True)
+                    Path("globaloffice_state.json").unlink(missing_ok=True)
+                    continue
                 self.page.wait_for_timeout(3000)
             except Exception as e_nav:
                 self.log(f"Falha de navegação na sessão salva: {e_nav}. Renovando login...", "WARNING")
@@ -155,30 +162,60 @@ class DownloaderService:
     def _selecionar_empresa(self):
         self.log("Confirmando seleção da empresa AC COBRANÇA...")
         try:
-            linha = self.page.locator("tr:has-text('AC COBRANCA')").first
-            if linha.is_visible(timeout=3000):
-                botao_check = linha.locator("button[title*='principal'], a.btn-info, button.btn-info, button:has(.fa-check)").first
-                if botao_check.is_visible():
-                    botao_check.click()
-                else:
-                    self.page.evaluate("if(typeof window.SetaAcao === 'function') window.SetaAcao('Pri', '5');")
-            else:
-                self.page.evaluate("if(typeof window.SetaAcao === 'function') window.SetaAcao('Pri', '5');")
-
-            self.page.wait_for_timeout(1500)
-
-            # Confirma o popup SweetAlert: "Confirma marcar a empresa selecionada como Principal ?"
-            btn_confirma_sweet = self.page.locator("button.confirm, .sweet-alert button:has-text('Confirmar'), button:has-text('Confirmar')").first
-            if btn_confirma_sweet.is_visible(timeout=4000):
-                self.log("Confirmando popup de empresa principal no sistema...")
-                btn_confirma_sweet.click()
-                self.page.wait_for_timeout(2500)
-
+            grid_visivel = False
             try:
-                self.page.evaluate("() => { const ov = document.querySelectorAll('.sweet-overlay, .sweet-alert'); ov.forEach(el => el.remove()); }")
+                grid_visivel = self.page.locator("#GRID, table:has-text('Nome da Empresa')").first.is_visible(timeout=2000)
             except Exception: pass
 
-            self.page.wait_for_timeout(1500)
+            if not grid_visivel:
+                self.log("Navegando para frmEmpresas...")
+                try:
+                    self.page.evaluate("if (typeof window.SetaAcao === 'function') window.SetaAcao('Menu', 'frmEmpresas');")
+                except Exception: pass
+                self.page.wait_for_selector("#GRID, tr:has-text('AC COBRANCA')", timeout=15000)
+                self.page.wait_for_timeout(1500)
+
+            linha = self.page.locator("#GRID tbody tr:has-text('AC COBRANCA'), tr:has-text('AC COBRANCA')").first
+            if linha.is_visible(timeout=6000):
+                btn_pri = linha.locator("button[title*='principal'], button.btn-info, button:has(.fa-check)").first
+                if btn_pri.is_visible():
+                    btn_pri.click(force=True)
+                else:
+                    self.page.evaluate("if(typeof window.SetaAcao === 'function') window.SetaAcao('Pri', '5');")
+
+                self.page.wait_for_timeout(1500)
+
+                btn_confirma_sweet = self.page.locator(
+                    "button.confirm, .swal2-confirm, .sweet-alert button:has-text('Sim'), "
+                    ".sweet-alert button:has-text('Confirmar'), button:has-text('Sim'), button:has-text('Confirmar')"
+                ).first
+
+                if btn_confirma_sweet.is_visible(timeout=5000):
+                    self.log("Confirmando popup de empresa principal no sistema...")
+                    btn_confirma_sweet.click(force=True)
+                    self.page.wait_for_timeout(3000)
+
+                try:
+                    self.page.evaluate("""() => {
+                        if (typeof window.ReleaseLock === 'function') window.ReleaseLock();
+                        window.GActivateLock = false;
+                        document.querySelectorAll('.sweet-overlay, .sweet-alert, .modal-backdrop').forEach(el => el.remove());
+                        const lk = document.getElementById('IWLocker'); if(lk) lk.style.display='none';
+                        document.body.classList.remove('modal-open', 'stop-scrolling');
+                    }""")
+                except Exception: pass
+                self.page.wait_for_timeout(1000)
+
+            self.log("Retornando ao Dashboard com a empresa AC COBRANÇA ativa...")
+            btn_inicio = self.page.locator(".sidebar-menu a:has-text('Início'), .sidebar a:has(.fa-home), .breadcrumb a:has-text('Início')").first
+            if btn_inicio.is_visible(timeout=3000):
+                btn_inicio.click(force=True)
+                self.page.wait_for_timeout(2000)
+            else:
+                self.page.evaluate("if (typeof window.SetaAcao === 'function') window.SetaAcao('Menu', 'frmPrincipal');")
+                self.page.wait_for_timeout(2000)
+
+            self.log("Empresa AC COBRANÇA selecionada e ativa com sucesso.")
         except Exception as e:
             self.log(f"Aviso ao selecionar empresa: {e}", "WARNING")
 
@@ -302,12 +339,18 @@ class DownloaderService:
         except Exception: pass
         return idx_cliente, idx_valor, idx_vencimento
 
-    def baixar_boletos_cliente(self, nome_cliente: str, visivel: bool = False):
+    def baixar_boletos_cliente(self, nome_cliente: str, visivel: bool = False, page_existente=None):
         self._cancelado = False
         boletos_salvos = []
+        usou_sessao_propria = False
         
         try:
-            self.iniciar_sessao(visivel=visivel)
+            if page_existente and not page_existente.is_closed():
+                self.page = page_existente
+                self.context = page_existente.context
+            else:
+                usou_sessao_propria = True
+                self.iniciar_sessao(visivel=visivel)
             self._acessar_cadastro_boletos()
 
             # 1. Pesquisa o cliente no grid
@@ -436,6 +479,19 @@ class DownloaderService:
                 # Formata no padrão ISO por Ano e Mês (sem números de parcela na frente)
                 nome_arquivo = formatar_nome_arquivo_boleto(vencimento, eh_entrada=eh_entrada)
                 caminho_final = pasta_destino / nome_arquivo
+
+                # Se o arquivo já existe no destino com tamanho válido, pula para a próxima parcela
+                if caminho_final.exists() and caminho_final.stat().st_size > 1024:
+                    t_kb = round(caminho_final.stat().st_size / 1024, 1)
+                    self.log(f"Boleto já existente na pasta ({t_kb} KB): {nome_arquivo}. Pulando download.")
+                    boletos_salvos.append({
+                        "arquivo": nome_arquivo,
+                        "vencimento": vencimento,
+                        "tipo": tipo_str,
+                        "tamanho": f"{t_kb} KB",
+                        "caminho": str(caminho_final)
+                    })
+                    continue
 
                 # Localiza o botão de impressão da linha atual
                 botao_imprimir = linha.locator('button[title="Imprimir boleto"], button[title*="Imprimir"], button:has(.fa-print)').first
@@ -587,7 +643,8 @@ class DownloaderService:
             self.log(f"Erro fatal na execução: {e}", "ERROR")
             raise e
         finally:
-            self.fechar_sessao()
+            if usou_sessao_propria:
+                self.fechar_sessao()
 
     def fechar_sessao(self):
         try:

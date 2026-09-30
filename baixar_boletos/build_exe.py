@@ -3,10 +3,21 @@ import sys
 import subprocess
 from pathlib import Path
 
+def matar_processo_antigo():
+    """Fecha instâncias anteriores do BaixarBoletos.exe que possam estar travando o arquivo em dist."""
+    if os.name == "nt":
+        try:
+            subprocess.run(["taskkill", "/F", "/IM", "BaixarBoletos.exe"], capture_output=True)
+        except Exception:
+            pass
+
 def compilar():
     print("=" * 60)
     print("INICIANDO COMPILACAO DO BAIXARBOLETOS.EXE")
     print("=" * 60)
+
+    # Garante que qualquer instância anterior aberta em segundo plano seja encerrada
+    matar_processo_antigo()
 
     modulo_dir = Path(__file__).resolve().parent
     raiz_dir = modulo_dir.parent

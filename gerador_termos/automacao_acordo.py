@@ -35,6 +35,7 @@ def formatar_caso(dados_extraidos: dict) -> dict:
     cpf = dados_extraidos.get("cpf", "__________") or "__________"
     processo = dados_extraidos.get("processo", "__________") or "__________"
     matricula = dados_extraidos.get("matricula", "__________") or "__________"
+    tipo_vinculo = dados_extraidos.get("tipo_vinculo", "Titular") or "Titular"
     telefone = dados_extraidos.get("telefone", "__________") or "__________"
     email = dados_extraidos.get("email", "__________") or "__________"
     endereco = dados_extraidos.get("endereco", "__________") or "__________"
@@ -75,6 +76,8 @@ def formatar_caso(dados_extraidos: dict) -> dict:
         "cpf_cliente": cpf,
         "processo": processo,
         "matricula": matricula,
+        "tipo_vinculo": tipo_vinculo,
+        "vinculo": tipo_vinculo,
         "telefone": telefone,
         "email": email,
         "endereco": endereco,

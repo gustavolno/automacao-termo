@@ -31,9 +31,27 @@ from logo_b64 import LOGO_B64
 # ============================================================
 # CONFIGURAÇÕES DE MODELOS E ARQUIVOS
 # ============================================================
-MODELO_PATH = os.path.join(_HERE, "modelos", "MODELO.docx")
-MODELO_AVISTA_PATH = os.path.join(_HERE, "modelos", "MODELO DE TERMO DE ACORDO-A VISTA.docx")
-PASTA_SAIDA = os.path.join(_ROOT, "Termos Gerados")
+if getattr(sys, 'frozen', False):
+    _BASE_DIR = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+    _EXE_DIR = os.path.dirname(sys.executable)
+    PASTA_SAIDA = os.path.join(_EXE_DIR, "Termos Gerados")
+    def _achar_modelo(nome_arquivo):
+        for p in [
+            os.path.join(_BASE_DIR, "modelos", nome_arquivo),
+            os.path.join(_BASE_DIR, "gerador_termos", "modelos", nome_arquivo),
+            os.path.join(_EXE_DIR, "modelos", nome_arquivo),
+            os.path.join(_HERE, "modelos", nome_arquivo)
+        ]:
+            if os.path.exists(p):
+                return p
+        return os.path.join(_HERE, "modelos", nome_arquivo)
+else:
+    PASTA_SAIDA = os.path.join(_ROOT, "Termos Gerados")
+    def _achar_modelo(nome_arquivo):
+        return os.path.join(_HERE, "modelos", nome_arquivo)
+
+MODELO_PATH = _achar_modelo("MODELO.docx")
+MODELO_AVISTA_PATH = _achar_modelo("MODELO DE TERMO DE ACORDO-A VISTA.docx")
 
 
 def aplicar_tema_titulo_escuro(window):
@@ -69,6 +87,7 @@ def formatar_e_calcular(campos: dict) -> dict:
     cpf = campos.get("cpf", "__________").strip() or "__________"
     processo = campos.get("processo", "").strip() or "__________"
     matricula = campos.get("matricula", "__________").strip() or "__________"
+    tipo_vinculo = campos.get("tipo_vinculo", "Titular").strip() or "Titular"
     telefone = campos.get("telefone", "__________").strip() or "__________"
     email = campos.get("email", "__________").strip() or "__________"
     endereco = campos.get("endereco", "__________").strip() or "__________"
@@ -123,6 +142,7 @@ def formatar_e_calcular(campos: dict) -> dict:
 
     return {
         "nome": nome, "cpf": cpf, "processo": processo, "matricula": matricula,
+        "tipo_vinculo": tipo_vinculo, "vinculo": tipo_vinculo,
         "telefone": telefone, "email": email, "endereco": endereco, "cep": cep,
         "valor_original": str_valor_original, "valor_acordo": str_valor_acordo,
         "valor_entrada": str_entrada, "vencimento_entrada": venc_entrada,
@@ -177,6 +197,7 @@ CAMPOS_REVISAO = [
     ("cpf", "CPF"),
     ("processo", "Processo Judicial"),
     ("matricula", "Matrícula"),
+    ("tipo_vinculo", "Vínculo (Titular/Agregado)"),
     ("telefone", "Telefone / WhatsApp"),
     ("email", "E-mail"),
     ("endereco", "Endereço"),
@@ -492,6 +513,7 @@ class App(tk.Tk):
         cad_fields = [
             ("demo_nome", "Nome do Titular"),
             ("demo_cpf", "CPF"),
+            ("demo_vinculo", "Vínculo (Beneficiário)"),
             ("demo_matricula", "Matrícula"),
             ("demo_valor_causa", "Valor da Causa (R$)"),
             ("demo_total_meses", "Total de Meses/Parcelas"),
@@ -598,9 +620,14 @@ class App(tk.Tk):
 
         res = processar_demonstrativo(texto)
 
+        vinculo = res.get("tipo_vinculo", "Titular")
         self._set_demo_entry("demo_nome", res.get("nome", ""))
         self._set_demo_entry("demo_cpf", res.get("cpf", ""))
-        self._set_demo_entry("demo_matricula", res.get("matricula", ""))
+        self._set_demo_entry("demo_vinculo", vinculo.upper())
+        if vinculo == "Agregado" and res.get("matricula_titular"):
+            self._set_demo_entry("demo_matricula", f"{res.get('matricula', '')} (Titular: {res.get('matricula_titular')})")
+        else:
+            self._set_demo_entry("demo_matricula", res.get("matricula", ""))
         self._set_demo_entry("demo_valor_causa", res.get("valor_causa", ""))
         self._set_demo_entry("demo_total_meses", str(res.get("total_meses", 0)))
 
@@ -639,6 +666,10 @@ class App(tk.Tk):
             self.entries["matricula"].delete(0, "end")
             self.entries["matricula"].insert(0, res["matricula"])
 
+        if "tipo_vinculo" in self.entries:
+            self.entries["tipo_vinculo"].delete(0, "end")
+            self.entries["tipo_vinculo"].insert(0, res.get("tipo_vinculo", "Titular"))
+
         if res.get("valor_causa"):
             self.entries["valor_original"].delete(0, "end")
             self.entries["valor_original"].insert(0, res["valor_causa"])
@@ -650,7 +681,7 @@ class App(tk.Tk):
         self._switch_tab("gerador")
         self.status_var.set("✅ Dados do Demonstrativo importados para a revisão do Termo!")
         self.status_lbl.config(fg=ACCENT_EMERALD)
-        messagebox.showinfo("Sucesso", "Dados do Demonstrativo (Nome, CPF, Matrícula, Valor e Competências) enviados com sucesso para o Gerador de Termos!")
+        messagebox.showinfo("Sucesso", f"Dados do Demonstrativo enviados para a minuta!\n\n• Vínculo: {res.get('tipo_vinculo', 'Titular').upper()}\n• Matrícula: {res.get('matricula', '')}\n• Competências: {res.get('competencias', '')}")
 
     # ============================================================
     # JANELA DE CALCULADORA INDEPENDENTE (FLUTUANTE COM TÍTULO ESCURO)

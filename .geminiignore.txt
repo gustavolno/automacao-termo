@@ -1,0 +1,74 @@
+.geminiignore:
+
+Prompt 1)
+1 - Crie o prótotipo Google AI Studio que é como eu ensino no Meu Primeiro App com IA
+2 - Exclua arquivos 
+Alternar entre os modos (visualizar total disponível) 
+Criar contas no Gmail e fazer login
+Otimizar as Skills
+
+
+--- PESADOS & DESNECESSÁRIOS --
+node_modules/
+.next/
+dist/
+build/
+out/
+.cache/
+.vercel/
+
+-- ASSETS (O Gemini não precisa ler o código binário disso) --
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+*.ico
+*.mp4
+*.webm
+*.pdf
+*.zip
+*.tar.gz
+
+-- LOGS & DIAGNÓSTICOS --
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+coverage/
+.clinic/
+
+-- DADOS SENSÍVEIS (Segurança e Economia) --
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+certs/
+
+-- CONFIGURAÇÕES DE IDE E SO --
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+-- SQL & DUMP (Evite subir bancos de dados inteiros para o contexto) --
+*.sql
+supabase/.temp/
+
+______
+
+Tópicos abordados:Tópicos abordados:
+O que fazer quando o Antigravity atinge o limite de tokens gratuito.
+Formas de economizar MUITOS tokens e usar o Antigravity sem travar.
+Como usar o Google AI Studio para criar o protótipo do seu app de graça.
+Estratégias de Vibe Coding para não desperdiçar as cotas do Claude e Gemini.
+Antigravity de graça
+Como usar o Antigravity de graça
+Como usar o Antigravity sem limites de tokens
+Formas de economizar MUITOS tokens ao usar o Antigravity
+Antigravity atingiu o limite de tokens gratuito
+Como resolver limite de tokens no antigravity
+Como criar aplicativos sem saber codificar
+Usar inteligência artificial para criar apps
