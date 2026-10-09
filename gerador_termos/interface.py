@@ -1,4 +1,4 @@
-import re
+﻿import re
 import os
 import sys
 import ctypes
@@ -36,10 +36,13 @@ if getattr(sys, 'frozen', False):
     _EXE_DIR = os.path.dirname(sys.executable)
     PASTA_SAIDA = os.path.join(_EXE_DIR, "Termos Gerados")
     def _achar_modelo(nome_arquivo):
+        # Prioridade: o modelo que está NA PASTA DO EXECUTÁVEL (editável pela equipe sem
+        # recompilar). Só se ele não existir, usa a cópia embutida no .exe.
         for p in [
+            os.path.join(_EXE_DIR, nome_arquivo),
+            os.path.join(_EXE_DIR, "modelos", nome_arquivo),
             os.path.join(_BASE_DIR, "modelos", nome_arquivo),
             os.path.join(_BASE_DIR, "gerador_termos", "modelos", nome_arquivo),
-            os.path.join(_EXE_DIR, "modelos", nome_arquivo),
             os.path.join(_HERE, "modelos", nome_arquivo)
         ]:
             if os.path.exists(p):
@@ -56,14 +59,14 @@ MODELO_AVISTA_PATH = _achar_modelo("MODELO DE TERMO DE ACORDO-A VISTA.docx")
 
 def aplicar_tema_titulo_escuro(window):
     """
-    Aplica o tema escuro nativo na barra de título do Windows (Windows 10/11 DWM).
+    Mantém a barra de título nativa do Windows no tema CLARO (combina com o visual executivo claro).
     """
     try:
         window.update_idletasks()
         hwnd = ctypes.windll.user32.GetParent(window.winfo_id())
         if not hwnd:
             hwnd = window.winfo_id()
-        value = ctypes.c_int(1)
+        value = ctypes.c_int(0)
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(value), ctypes.sizeof(value))
         ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, 19, ctypes.byref(value), ctypes.sizeof(value))
     except Exception:
@@ -167,23 +170,25 @@ def gerar_documento(campos_revisados: dict, modelo_path: str = MODELO_PATH):
 
 
 # ============================================================
-# DESIGN SYSTEM — ALDRIGUES CÂNDIDO ADVOCACIA (DARK EXECUTIVE)
+# DESIGN SYSTEM — ALDRIGUES CÂNDIDO ADVOCACIA (EXECUTIVO CLARO)
 # ============================================================
-BG_MAIN = "#0B0F17"        # Dark Midnight Slate Background
-BG_NAV = "#111827"         # Executive Header Surface
-BG_CARD = "#1E293B"        # Slate Card Container
-BG_INPUT = "#0F172A"       # Deep Inset Input Field Background
-BORDER_COLOR = "#334155"   # Subtle Legal Slate Border
+BG_MAIN = "#F3F0E8"        # Pergaminho claro (fundo da janela)
+BG_NAV = "#E6E1D4"         # Barras de cabeçalho e painéis
+BG_CARD = "#FBFAF7"        # Cartões de conteúdo
+BG_INPUT = "#FFFFFF"       # Campos de entrada
+BORDER_COLOR = "#D2CBBA"   # Linhas finas de separação
 
-ACCENT_GOLD = "#C5A059"    # Luxury Law Firm Gold (Primary Brand Accent)
-ACCENT_GOLD_HOVER = "#E5C170"
-ACCENT_EMERALD = "#10B981" # Legal Mint Green (À Vista & Success)
-ACCENT_CYAN = "#38BDF8"    # Executive Sky Blue
-ACCENT_PINK = "#F43F5E"    # Elegant Rose
+ACCENT_GOLD = "#8C6A2B"    # Dourado bronze (marca / ação primária)
+ACCENT_GOLD_HOVER = "#6F5321"
+ACCENT_EMERALD = "#2F7C5A" # Verde oliva (À Vista e sucesso)
+ACCENT_EMERALD_HOVER = "#246347"
+ACCENT_CYAN = "#1F4E79"    # Azul corporativo (processando)
+ACCENT_ERROR = "#A44332"   # Terracota (erros)
+ACCENT_PINK = "#A44332"
 
-TEXT_BRIGHT = "#F8FAFC"    # Crisp White Primary Text
-TEXT_MUTED = "#94A3B8"     # Soft Slate Text
-TEXT_DIM = "#64748B"       # Subtle Placeholder Text
+TEXT_BRIGHT = "#1F2933"    # Texto principal (carvão)
+TEXT_MUTED = "#6B645C"     # Texto secundário
+TEXT_DIM = "#9A9388"       # Placeholders
 
 FONT_BRAND = ("Georgia", 11, "bold")
 FONT_UI = ("Segoe UI", 9)
@@ -251,6 +256,7 @@ class App(tk.Tk):
         navbar = tk.Frame(self, bg=BG_NAV, height=58, highlightthickness=1, highlightbackground=BORDER_COLOR)
         navbar.pack(fill="x")
         navbar.pack_propagate(False)
+        tk.Frame(self, bg=ACCENT_GOLD, height=2).pack(fill="x")  # filete dourado sob o cabeçalho
 
         # Marca & Logotipo do Escritório
         brand_frame = tk.Frame(navbar, bg=BG_NAV)
@@ -423,12 +429,12 @@ class App(tk.Tk):
         self.btn_gerar_avista = tk.Button(
             btn_row, text="💰  GERAR TERMO À VISTA",
             font=FONT_UI_BOLD, bg=ACCENT_EMERALD, fg=BG_MAIN,
-            activebackground="#34D399", activeforeground=BG_MAIN,
+            activebackground=ACCENT_EMERALD_HOVER, activeforeground=BG_MAIN,
             relief="flat", cursor="hand2", pady=11, bd=0,
             command=lambda: self._gerar("avista")
         )
         self.btn_gerar_avista.pack(side="left", fill="x", expand=True, padx=(6, 6))
-        self.btn_gerar_avista.bind("<Enter>", lambda e: self.btn_gerar_avista.config(bg="#34D399"))
+        self.btn_gerar_avista.bind("<Enter>", lambda e: self.btn_gerar_avista.config(bg=ACCENT_EMERALD_HOVER))
         self.btn_gerar_avista.bind("<Leave>", lambda e: self.btn_gerar_avista.config(bg=ACCENT_EMERALD))
 
         self.btn_reset = tk.Button(
@@ -741,7 +747,7 @@ class App(tk.Tk):
             entry.insert(0, val)
             entry.xview_moveto(0)
             if not val and chave in ("nome", "cpf", "valor_acordo"):
-                entry.config(highlightbackground="#EF4444", highlightcolor="#EF4444")
+                entry.config(highlightbackground=ACCENT_ERROR, highlightcolor=ACCENT_ERROR)
             else:
                 entry.config(highlightbackground=BORDER_COLOR, highlightcolor=ACCENT_GOLD)
 
@@ -787,7 +793,8 @@ class App(tk.Tk):
                 "Termo Gerado",
                 f"Termo de acordo ({tipo_label}) gerado com sucesso!\n\n"
                 f"Cliente: {dados['nome_cliente']}\n"
-                f"CPF: {dados['cpf_cliente']}\n\n"
+                f"CPF: {dados['cpf_cliente']}\n"
+                f"Modelo usado: {modelo}\n\n"
                 f"Deseja abrir o arquivo Word agora?"
             )
             if resp:
@@ -795,7 +802,7 @@ class App(tk.Tk):
             self._reset_campos()
         except Exception as e:
             self.status_var.set(f"❌ Erro ao gerar documento: {e}")
-            self.status_lbl.config(fg="#EF4444")
+            self.status_lbl.config(fg=ACCENT_ERROR)
             messagebox.showerror("Erro", str(e))
         finally:
             self.btn_gerar_parcelado.config(state="normal")
@@ -805,3 +812,4 @@ class App(tk.Tk):
 if __name__ == "__main__":
     app = App()
     app.mainloop()
+

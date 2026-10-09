@@ -43,6 +43,12 @@ def compilar():
         "--specpath", str(modulo_dir),
         "--add-data", add_data_modelos,
         "--add-data", add_data_modulo,
+        # interface.py importa logo_b64 (pasta compartilhado/) e parser_acordo (esta pasta)
+        # via sys.path; o PyInstaller só os inclui se essas pastas estiverem no caminho de análise.
+        "--paths", str(raiz_dir / "compartilhado"),
+        "--paths", str(modulo_dir),
+        "--hidden-import", "logo_b64",
+        "--hidden-import", "parser_acordo",
         "--hidden-import", "num2words",
         "--hidden-import", "docxtpl",
         "--hidden-import", "docx",
