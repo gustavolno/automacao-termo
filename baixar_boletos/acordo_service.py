@@ -1,4 +1,4 @@
-"""
+﻿"""
 acordo_service.py
 Serviço de automação Playwright para inclusão de Acordos Judiciais e Download no Global Office.
 """
@@ -20,10 +20,21 @@ from baixar_boletos.config import (
     GLOBAL_OFFICE_PASS,
     STATE_FILE,
     USER_AGENT,
+    obter_user_agent,
     formatar_nome_arquivo_boleto,
-    obter_pasta_boletos_cliente
+    obter_pasta_boletos_cliente,
+    mes_inicial_boletos,
+    situacao_empresa
 )
 from baixar_boletos.acordo_parser import AcordoParser, normalizar_texto
+from baixar_boletos.login_helper import login_manual
+
+
+SEM_VALORES_GEAP = "SEM_VALORES_GEAP"  # retorno de abrir_modal_acordo para o aviso da GEAP
+
+
+class ProcessamentoCancelado(Exception):
+    """Botão PARAR: interrompe o cliente atual no próximo passo seguro."""
 
 
 class AcordoService:
@@ -37,6 +48,12 @@ class AcordoService:
         self.parser = AcordoParser()
         self._cancelado = False
         self._clientes_baixados = set()
+        # confirmar_gravacao(resumo) -> bool: pergunta antes de gravar boletos novos.
+        # Sem ela (None) o robô preenche, confere e CANCELA, sem gravar.
+        self.confirmar_gravacao: Optional[Callable[[str], bool]] = None
+        # True quando o último processar_cliente_completo gravou algo (acordo ou boletos avulsos):
+        # depois de gravar, a tela de boletos da mesma sessão fica travada.
+        self.gravou_algo = False
 
     def log(self, mensagem: str, nivel: str = "INFO"):
         hora = time.strftime("%H:%M:%S")
@@ -51,6 +68,10 @@ class AcordoService:
         self._cancelado = True
         self.log("Cancelamento solicitado pelo utilizador.", "WARNING")
 
+    def _parar_se_cancelado(self):
+        if self._cancelado:
+            raise ProcessamentoCancelado("processamento parado pelo usuário")
+
     def _esperar_login_manual(self):
         self.log("Sessão não autenticada. A preencher credenciais...")
         # Criar playwright proprio se o principal foi fechado por fechar_sessao()
@@ -60,39 +81,23 @@ class AcordoService:
             pw = sync_playwright().start()
             pw_proprio = True
 
-        browser = pw.chromium.launch(headless=False)
-        context = browser.new_context(user_agent=USER_AGENT)
-        page = context.new_page()
-        page.goto(GLOBAL_OFFICE_URL)
-
-        if GLOBAL_OFFICE_LOGIN:
-            try: page.locator("#EDTLOGIN").fill(GLOBAL_OFFICE_LOGIN)
-            except Exception: pass
-        if GLOBAL_OFFICE_USER:
-            try: page.locator("#EDTUSUARIO").fill(GLOBAL_OFFICE_USER)
-            except Exception: pass
-        if GLOBAL_OFFICE_PASS:
-            try: page.locator("#EDTSENHA").fill(GLOBAL_OFFICE_PASS)
-            except Exception: pass
-
-        self.log("Por favor, resolva o reCAPTCHA na janela aberta do navegador e clique em ENTRAR.")
         try:
-            page.locator("#EDTLOGIN").wait_for(state="hidden", timeout=0)
-            page.wait_for_timeout(3000)
-            context.storage_state(path=str(STATE_FILE))
-            self.log("Login efetuado com sucesso!")
+            login_manual(pw, self.log)
         finally:
-            browser.close()
             if pw_proprio:
                 try: pw.stop()
                 except Exception: pass
 
     def fechar_sessao(self):
-        try:
-            if self.context: self.context.close()
-            if self.browser: self.browser.close()
-            if self.playwright: self.playwright.stop()
-        except Exception: pass
+        # Cada passo isolado: um close() com erro (navegador já fechado) não pode impedir o
+        # stop(), senão a próxima sessão falha com "Sync API inside the asyncio loop".
+        for passo in (lambda: self.context and self.context.close(),
+                      lambda: self.browser and self.browser.close(),
+                      lambda: self.playwright and self.playwright.stop()):
+            try:
+                passo()
+            except Exception:
+                pass
         self.context = None
         self.browser = None
         self.playwright = None
@@ -120,7 +125,7 @@ class AcordoService:
         )
         self.context = self.browser.new_context(
             storage_state=str(state_path),
-            user_agent=USER_AGENT,
+            user_agent=obter_user_agent(),
             viewport={"width": 1920, "height": 1080},
             accept_downloads=True,
             permissions=["geolocation"],
@@ -213,17 +218,27 @@ class AcordoService:
                 else:
                     self.page.evaluate("if(typeof window.SetaAcao === 'function') window.SetaAcao('Pri', '5');")
 
-                self.page.wait_for_timeout(1500)
-
-                btn_confirma = self.page.locator(
-                    "button.confirm, .swal2-confirm, .sweet-alert button:has-text('Sim'), "
-                    ".sweet-alert button:has-text('Confirmar'), button:has-text('Sim'), button:has-text('Confirmar')"
-                ).first
-
-                if btn_confirma.is_visible(timeout=5000):
-                    self.log("Confirmando popup de empresa principal no sistema...")
-                    btn_confirma.click(force=True)
-                    self.page.wait_for_timeout(3000)
+                # O botão de confirmar é obrigatório para a empresa ficar ativa. Espera o
+                # popup aparecer (até 10s) e confirma via JS (o IWLocker bloqueia clique real).
+                # Se vier mais de um popup em sequência, confirma cada um.
+                confirmou = False
+                for _ in range(3):
+                    sweet = self.page.locator(".sweet-alert.visible, .swal2-popup").first
+                    try:
+                        sweet.wait_for(state="visible", timeout=10000 if not confirmou else 3000)
+                    except Exception:
+                        break
+                    txt = " ".join(sweet.inner_text().split())[:80]
+                    self.log(f"Confirmando popup de empresa principal: '{txt}'")
+                    sweet.locator("button.confirm, .swal2-confirm").first.evaluate("el => el.click()")
+                    confirmou = True
+                    self.page.wait_for_timeout(2500)
+                    try:
+                        self.page.wait_for_load_state("load", timeout=10000)
+                    except Exception:
+                        pass
+                if not confirmou:
+                    self.log("Popup de confirmação da empresa NÃO apareceu; empresa pode não ter sido selecionada.", "WARNING")
 
                 self.fechar_modais_ou_telas_ativas()
                 self.page.wait_for_timeout(1000)
@@ -248,9 +263,8 @@ class AcordoService:
                 if (typeof window.ReleaseLock === 'function') window.ReleaseLock();
                 window.GActivateLock = false;
 
-                // Fecha botões X se existirem
-                document.querySelectorAll('#bx-clg-close-btn, .iw-dlg-close, button.close, [data-dismiss="modal"]').forEach(b => b.click());
-                document.querySelectorAll('.sweet-alert button.confirm, .sweet-alert button.cancel').forEach(b => b.click());
+                // NÃO clica em nenhum botão (cliques cegos disparavam ações do sistema,
+                // como o registro de horário): só remove overlays do DOM.
 
                 // Remove do DOM todos os overlays que bloqueiam cliques
                 const seletores = [
@@ -277,7 +291,6 @@ class AcordoService:
                 }
                 document.body.classList.remove('modal-open', 'stop-scrolling');
             }""")
-            self.page.keyboard.press("Escape")
             self.page.wait_for_timeout(400)
         except Exception: pass
 
@@ -399,50 +412,75 @@ class AcordoService:
     def pesquisar_devedor_no_grid(self, nome_cliente: str, visivel: bool = False) -> bool:
         self.log(f"Pesquisando devedor no grid: '{nome_cliente}'...")
         try:
-            self.fechar_modais_ou_telas_ativas()
-            campo_busca = self.page.locator("input[type='search'], #tabela_filter input").first
-            campo_busca.wait_for(state="visible", timeout=8000)
-            campo_busca.scroll_into_view_if_needed()
-            campo_busca.click(force=True)
-            self.page.keyboard.press("Control+A")
-            self.page.keyboard.press("Backspace")
-            self.page.wait_for_timeout(400)
+            # Busca flexível: nome completo -> primeiro + último -> primeiro + segundo
+            nome_limpo = " ".join(nome_cliente.split())
+            partes_nome = nome_limpo.split()
+            termos_busca = [nome_limpo]
+            if len(partes_nome) > 2:
+                termos_busca.append(f"{partes_nome[0]} {partes_nome[-1]}")
+                termos_busca.append(f"{partes_nome[0]} {partes_nome[1]}")
 
-            try:
-                with self.page.expect_response(lambda r: "callback=tabela" in r.url and r.status == 200, timeout=12000):
-                    self.page.keyboard.type(nome_cliente, delay=60)
-            except Exception:
-                self.page.keyboard.press("Enter")
-                self.page.wait_for_timeout(2000)
-
-            try:
-                self.page.wait_for_selector("#tabela_processing", state="hidden", timeout=8000)
-            except Exception: pass
-            self.page.wait_for_timeout(800)
-
-            info_el = self.page.locator("#tabela_info").first
-            info_txt = info_el.inner_text() if info_el.is_visible() else ""
-            if "0 até 0 de 0" in info_txt or "Mostrando 0" in info_txt:
-                self.log(f"Devedor '{nome_cliente}' não encontrado no grid de devedores.", "WARNING")
-                return False
-
-            linhas = self.page.locator("#tabela tbody tr").all()
-            if not linhas: return False
-
-            txt_primeira = linhas[0].inner_text().strip()
-            if not txt_primeira or "nenhum registro" in txt_primeira.lower():
-                return False
-
-            # TRAVA RIGOROSA DE NOME: Não aceitar cliente diferente do pesquisado
-            norm_cliente = normalizar_texto(nome_cliente)
-            norm_linha = normalizar_texto(txt_primeira)
+            norm_cliente = normalizar_texto(nome_limpo)
             partes = [p for p in norm_cliente.split() if len(p) > 2]
-            if partes and not any(p in norm_linha for p in partes[:2]):
-                self.log(f"Linha retornada não confere com '{nome_cliente}': {txt_primeira[:50]}...", "WARNING")
-                return False
 
-            self.log(f"Devedor '{nome_cliente}' localizado no grid com sucesso.", "SUCCESS")
-            return True
+            for termo in termos_busca:
+                self.fechar_modais_ou_telas_ativas()
+                campo_busca = self.page.locator("input[type='search'], #tabela_filter input").first
+                campo_busca.wait_for(state="visible", timeout=8000)
+                campo_busca.scroll_into_view_if_needed()
+                campo_busca.click(force=True)
+                self.page.keyboard.press("Control+A")
+                self.page.keyboard.press("Backspace")
+                self.page.wait_for_timeout(400)
+
+                try:
+                    with self.page.expect_response(lambda r: "callback=tabela" in r.url and r.status == 200, timeout=12000):
+                        self.page.keyboard.type(termo, delay=60)
+                except Exception:
+                    self.page.keyboard.press("Enter")
+                    self.page.wait_for_timeout(2000)
+
+                try:
+                    self.page.wait_for_selector("#tabela_processing", state="hidden", timeout=8000)
+                except Exception: pass
+                self.page.wait_for_timeout(800)
+
+                info_el = self.page.locator("#tabela_info").first
+                info_txt = info_el.inner_text() if info_el.is_visible() else ""
+                if "0 até 0 de 0" in info_txt or "Mostrando 0" in info_txt:
+                    self.log(f"Sem resultados para '{termo}'.", "INFO")
+                    continue
+
+                linhas = self.page.locator("#tabela tbody tr").all()
+                if not linhas:
+                    continue
+
+                # TRAVA DE NOME: só aceita a linha cujo nome tenha o primeiro E o último
+                # nome (palavras inteiras) do cliente pesquisado. Nunca "qualquer linha".
+                idx_ok = None
+                for i, ln in enumerate(linhas):
+                    try:
+                        txt = ln.inner_text().strip()
+                    except Exception:
+                        continue
+                    if not txt or "nenhum registro" in txt.lower():
+                        continue
+                    celula_nome = normalizar_texto(re.split(r"[\t\n]", txt)[0])
+                    palavras = set(celula_nome.split())
+                    if partes and partes[0] in palavras and partes[-1] in palavras:
+                        idx_ok = i
+                        break
+                    self.log(f"Linha {i + 1} não confere com '{nome_cliente}': {txt[:50]}...", "WARNING")
+
+                if idx_ok is None:
+                    continue
+
+                self._linha_devedor = idx_ok
+                self.log(f"Devedor '{nome_cliente}' localizado no grid (linha {idx_ok + 1}) com a busca '{termo}'.", "SUCCESS")
+                return True
+
+            self.log(f"Devedor '{nome_cliente}' NÃO foi localizado no grid após {len(termos_busca)} tentativa(s).", "WARNING")
+            return False
 
         except Exception as e:
             self.log(f"Erro ao pesquisar devedor: {e}", "ERROR")
@@ -454,7 +492,7 @@ class AcordoService:
             self.fechar_modais_ou_telas_ativas()
             self.dispensar_popup_horario()
             self.page.wait_for_timeout(600)
-            linha = self.page.locator("#tabela tbody tr").first
+            linha = self.page.locator("#tabela tbody tr").nth(getattr(self, "_linha_devedor", 0))
             linha.wait_for(state="visible", timeout=8000)
 
             texto_linha = linha.inner_text().lower()
@@ -462,9 +500,12 @@ class AcordoService:
                 self.log(f"O devedor '{nome_cliente}' JÁ POSSUI ACORDO CADASTRADO no sistema.", "SUCCESS")
                 return None
 
-            btn = linha.locator("button:has(.fa-handshake-o), button[onclick*='Acord'], button[title*='acordo' i]").first
+            # Caminho único: somente o ícone de mãos dadas. Sem "chutes" por onclick/title,
+            # que podiam clicar em outro botão da linha.
+            btn = linha.locator("button:has(.fa-handshake-o), button:has(.fa-handshake), a:has(.fa-handshake-o), a:has(.fa-handshake)").first
             if not btn.is_visible(timeout=4000):
-                self.log("Botão de acordo não encontrado na linha do devedor.", "ERROR")
+                acoes = linha.locator("td").last.inner_html()
+                self.log(f"Ícone de mãos dadas não encontrado. HTML das ações da linha: {acoes[:1500]}", "ERROR")
                 return False
 
             onclick_code = btn.get_attribute("onclick") or ""
@@ -479,10 +520,31 @@ class AcordoService:
             if sweet.is_visible(timeout=3000):
                 txt_alerta = sweet.inner_text()
                 self.log(f"Aviso/Popup detectado na tela: {txt_alerta[:80]}...", "WARNING")
+                # Nova regra: sem valores em aberto na GEAP o acordo não é subido;
+                # os boletos que faltam são criados manualmente em Boletos > +NOVO.
+                if "FICHA FINANCEIRA NAO ATUALIZADA" in normalizar_texto(txt_alerta):
+                    sweet.locator("button.confirm").first.evaluate("el => el.click()")
+                    self.log("GEAP sem valores em aberto: o acordo não será subido; seguir pela criação de boletos.", "WARNING")
+                    return SEM_VALORES_GEAP
                 btn_ok = sweet.locator("button.confirm, button:has-text('OK'), button:has-text('Confirmar'), button:has-text('Sim')").first
                 if btn_ok.is_visible():
-                    btn_ok.click(no_wait_after=True)
-                    self.page.wait_for_timeout(2000)
+                    # IWLocker intercepta cliques reais: clica via JS e libera o lock
+                    btn_ok.evaluate("el => el.click()")
+                    self.page.wait_for_timeout(1500)
+                    try:
+                        self.page.wait_for_load_state("load", timeout=10000)
+                    except Exception:
+                        pass
+                    # O popup recarrega a página e fecha o formulário: força nova tentativa
+                    if not self.page.locator("#tabela tbody tr").first.is_visible():
+                        self.log("Página recarregada pelo popup de horário; reiniciando o fluxo.", "WARNING")
+                        return False
+                    self.page.evaluate("""() => {
+                        if (typeof window.ReleaseLock === 'function') window.ReleaseLock();
+                        window.GActivateLock = false;
+                        const lk = document.getElementById('IWLocker');
+                        if (lk) lk.style.display = 'none';
+                    }""")
 
             modal = self.page.locator("#Cadastro, div[role='dialog']").filter(has_text="Acordos Judiciais").first
             modal.wait_for(state="visible", timeout=15000)
@@ -493,23 +555,476 @@ class AcordoService:
             return False
 
 
+    # ── Boletos > +NOVO (aviso "Ficha financeira não atualizada") ──
+    def _abrir_tela_boletos(self) -> bool:
+        self.fechar_modais_ou_telas_ativas()
+        for _ in range(2):
+            try:
+                self.page.evaluate("if (typeof window.SetaAcao === 'function') window.SetaAcao('Menu', 'frmBoletoAvulso');")
+                self.page.wait_for_selector("#tabela_filter input", state="visible", timeout=25000)
+                self.page.wait_for_timeout(1500)
+                return True
+            except Exception as e:
+                self.log(f"Tela de boletos não abriu ({e}). Tentando de novo...", "WARNING")
+                self.page.wait_for_timeout(2000)
+        return False
+
+    def _empresa_ac_ativa(self, estrito: bool = False) -> bool:
+        """Na tela de Boletos, o Modelo 'SICOOB- AC' só existe com a empresa AC COBRANÇA ativa
+        (em outra empresa aparecem 'BB ALDRIGUES' / 'SICOOB ALDRIGUES'). Lista ainda vazia
+        (comum logo após gravar um acordo) só reprova no modo estrito (antes de gravar)."""
+        situacao = situacao_empresa(self.page)
+        if situacao == "INDEFINIDO":
+            self.log("Lista de modelos da tela de boletos não carregou: empresa não confirmada.", "WARNING")
+            return not estrito
+        return situacao == "AC"
+
+    def _garantir_empresa_ac_na_tela_boletos(self, estrito: bool = True) -> bool:
+        if not self._abrir_tela_boletos():
+            return False
+        situacao = situacao_empresa(self.page)
+        if situacao == "AC" or (situacao == "INDEFINIDO" and not estrito):
+            return True
+        if situacao == "INDEFINIDO":
+            # Antes de gravar: reabre a tela e confere de novo, sem trocar de empresa à toa
+            if self._abrir_tela_boletos() and situacao_empresa(self.page) == "AC":
+                return True
+            self.log("Não consegui confirmar a empresa AC COBRANÇA na tela de boletos. Nada será gravado.", "ERROR")
+            return False
+        self.log("A empresa ativa NÃO é a AC COBRANÇA (alguém trocou a empresa neste login?). Selecionando de novo...", "WARNING")
+        self._selecionar_empresa()
+        if self._abrir_tela_boletos() and situacao_empresa(self.page) == "AC":
+            return True
+        self.log("Não consegui ativar a empresa AC COBRANÇA. Nada será gravado.", "ERROR")
+        return False
+
+    def _marcar_situacao(self, radio_id: str):
+        """O filtro Situação recarrega a tela: marca o rádio e espera a tabela voltar."""
+        pg = self.page
+        if pg.evaluate(f"(document.getElementById('{radio_id}')||{{}}).checked === true"):
+            return
+        try:
+            pg.evaluate(f"document.getElementById('{radio_id}').click()")
+        except Exception:
+            pass  # a própria recarga pode derrubar o evaluate
+        pg.wait_for_timeout(1500)
+        for _ in range(3):
+            try:
+                pg.wait_for_load_state("domcontentloaded", timeout=15000)
+                pg.wait_for_selector("#tabela_filter input", state="visible", timeout=20000)
+                pg.wait_for_selector("#tabela_processing", state="hidden", timeout=15000)
+                pg.wait_for_timeout(1000)
+                if pg.evaluate(f"(document.getElementById('{radio_id}')||{{}}).checked === true"):
+                    return
+            except Exception:
+                pg.wait_for_timeout(1500)
+
+    def _listar_boletos_cliente(self, nome_cliente: str, tentativas: int = 3) -> Optional[list]:
+        """Boletos do cliente na tela de Boletos com Situação = Todos: [{venc, valor, status}].
+        None se a lista não pôde ser lida com segurança."""
+        for t in range(1, tentativas + 1):
+            r = self._listar_boletos_cliente_uma_vez(nome_cliente)
+            if r is not None:
+                return r
+            if t < tentativas:
+                self.log(f"Releitura da lista de boletos ({t + 1}/{tentativas})...", "WARNING")
+                self.page.wait_for_timeout(2000)
+        return None
+
+    def _listar_boletos_cliente_uma_vez(self, nome_cliente: str) -> Optional[list]:
+        pg = self.page
+        try:
+            self._marcar_situacao("RDBTNTODOS_INPUT")
+            pg.evaluate("window.jQuery('#tabela').DataTable().page.len(100)")
+            pg.evaluate("""(nome) => { const i = document.querySelector('#tabela_filter input'); if (i) i.value = nome;
+                window.jQuery('#tabela').DataTable().search(nome).draw(); }""", nome_cliente)
+            pg.wait_for_timeout(3000)
+            try:
+                pg.wait_for_selector("#tabela_processing", state="hidden", timeout=15000)
+            except Exception:
+                pass
+            if (pg.evaluate("(document.querySelector('input[name=situacao]:checked')||{}).id") != "RDBTNTODOS_INPUT"
+                    or pg.evaluate("(document.querySelector('#tabela_filter input')||{}).value") != nome_cliente):
+                self.log("Filtro da tela de boletos não ficou como esperado (Todos + nome).", "WARNING")
+                return None
+            cab = [normalizar_texto(th.inner_text()) for th in pg.locator("#tabela thead th").all()]
+            ic = next(i for i, h in enumerate(cab) if "CLIENTE" in h)
+            iv = next(i for i, h in enumerate(cab) if h == "VALOR")
+            ivc = next(i for i, h in enumerate(cab) if "VENCIMENTO" in h)
+            ist = next(i for i, h in enumerate(cab) if "STATUS" in h)
+            alvo = normalizar_texto(nome_cliente)
+            boletos = []
+            for tr in pg.locator("#tabela tbody tr").all():
+                tds = [td.inner_text().strip() for td in tr.locator("td").all()]
+                if len(tds) <= max(ic, iv, ivc, ist) or normalizar_texto(tds[ic]) != alvo:
+                    continue
+                boletos.append({"venc": tds[ivc], "valor": tds[iv], "status": normalizar_texto(tds[ist])})
+            self.log(f"Boletos de '{nome_cliente}' no sistema (todas as situações): {len(boletos)} "
+                     f"| {pg.locator('#tabela_info').inner_text().strip()}")
+            return boletos
+        except Exception as e:
+            self.log(f"Não consegui ler os boletos de '{nome_cliente}': {e}", "WARNING")
+            return None
+
+    def _escolher_na_lista(self, campo_id: str, busca: str, prefixo: str, casa_linha) -> Optional[str]:
+        """Digita a busca no campo (Cliente/Item), espera a lista do sistema e clica na linha
+        aprovada por casa_linha(texto). Devolve o texto da linha escolhida."""
+        pg = self.page
+        campo = pg.locator(f"#{campo_id}")
+        campo.focus()
+        campo.press("Control+A")
+        campo.press("Backspace")
+        campo.press_sequentially(busca, delay=80)
+        linhas = []
+        for _ in range(20):
+            pg.wait_for_timeout(500)
+            linhas = pg.evaluate("""(pfx) => [...document.querySelectorAll('tr')]
+                .filter(t => t.offsetParent !== null && (t.getAttribute('onclick')||'').includes("SetaAcao('" + pfx + "'"))
+                .map(t => t.innerText.replace(/\\s+/g, ' ').trim())""", prefixo)
+            if linhas:
+                break
+        escolhidas = [i for i, t in enumerate(linhas) if casa_linha(t)]
+        if len(escolhidas) != 1:
+            self.log(f"Lista de '{campo_id}': {len(escolhidas)} linha(s) compatíveis em {linhas}. Não vou escolher às cegas.", "WARNING")
+            return None
+        pg.evaluate("""([pfx, idx]) => { const ts = [...document.querySelectorAll('tr')]
+            .filter(t => t.offsetParent !== null && (t.getAttribute('onclick')||'').includes("SetaAcao('" + pfx + "'"));
+            ts[idx].click(); }""", [prefixo, escolhidas[0]])
+        # o sistema preenche o campo após ida ao servidor: espera o valor mudar
+        for _ in range(20):
+            pg.wait_for_timeout(500)
+            if normalizar_texto(campo.input_value()) != normalizar_texto(busca):
+                break
+        self.log(f"{campo_id}: escolhida '{linhas[escolhidas[0]]}' -> campo '{campo.input_value()}'")
+        # a lista continua aberta por cima do formulário depois da escolha
+        pg.evaluate("['LISTACLIENTE', 'LISTAITEM'].forEach(id => { const e = document.getElementById(id); if (e) e.style.display = 'none'; })")
+        return linhas[escolhidas[0]]
+
+    def _selecionar_opcao(self, sel_id: str, rotulo: str) -> bool:
+        pg = self.page
+        for _ in range(20):  # as opções do Modelo recarregam depois do Escritório
+            val = pg.evaluate("""([id, r]) => { const s = document.getElementById(id); if (!s) return null;
+                const o = [...s.options].find(o => o.text.replace(/\\s+/g, ' ').trim() === r); return o ? o.value : null; }""",
+                              [sel_id, rotulo])
+            if val is not None:
+                pg.select_option(f"#{sel_id}", val)
+                pg.wait_for_timeout(1500)
+                atual = pg.evaluate(f"((document.getElementById('{sel_id}').selectedOptions[0])||{{}}).text || ''")
+                if " ".join(atual.split()) == rotulo:
+                    return True
+            pg.wait_for_timeout(500)
+        self.log(f"Não consegui selecionar '{rotulo}' em {sel_id}.", "ERROR")
+        return False
+
+    def _cancelar_inclusao(self):
+        try:
+            self.page.evaluate("""() => { const b = [...document.querySelectorAll('button')]
+                .find(b => b.offsetParent !== null && b.innerText.trim().toUpperCase() === 'CANCELAR'); if (b) b.click(); }""")
+            self.page.wait_for_timeout(1500)
+        except Exception:
+            pass
+
+    def criar_boletos_faltantes(self, nome_cliente: str, dados: Dict[str, Any],
+                                motivo: str = "aviso da GEAP (sem valores em aberto)") -> bool:
+        try:
+            return self._criar_boletos_faltantes(nome_cliente, dados, motivo)
+        finally:
+            # o download seguinte espera a lista no filtro padrão (Em aberto)
+            try:
+                if self.page and not self.page.is_closed() and self.page.locator("#RDBTNEMABERTO_INPUT").count():
+                    self._marcar_situacao("RDBTNEMABERTO_INPUT")
+            except Exception:
+                pass
+
+    def _criar_boletos_faltantes(self, nome_cliente: str, dados: Dict[str, Any], motivo: str) -> bool:
+        """Boletos > +NOVO para as parcelas que faltam (aviso 'Ficha financeira não atualizada').
+        Vencimento = primeiro boleto que falta; Repetição = faltantes - 1. Só grava se:
+        empresa AC COBRANÇA ativa, lista lida com segurança, faltantes em meses seguidos,
+        cliente achado pelo CPF, todos os campos conferidos e confirmar_gravacao aprovar."""
+        try:
+            from baixar_boletos.boletos_faltantes import calcular_faltantes
+        except ImportError:
+            from boletos_faltantes import calcular_faltantes
+        pg = self.page
+        self.log(f"'{nome_cliente}': {motivo}. Indo criar os boletos pela tela de Boletos.")
+
+        valor = str(dados.get("valor_parcela_boleto") or dados.get("valor_parcela") or "")
+        qtd = int(dados.get("qtd_parcelas") or 0)
+        primeiro = dados.get("primeiro_vencimento") or ""
+        cpf = re.sub(r"\D", "", str(dados.get("cpf") or ""))
+        if not (valor and qtd and primeiro and cpf):
+            self.log(f"Dados incompletos para criar boletos (valor={valor!r}, parcelas={qtd}, "
+                     f"1º venc={primeiro!r}, cpf={cpf!r}). Fazer manualmente.", "ERROR")
+            return False
+
+        if not self._garantir_empresa_ac_na_tela_boletos():
+            return False
+        boletos = self._listar_boletos_cliente(nome_cliente)
+        if boletos is None:
+            return False
+
+        def centavos(v):
+            d = re.sub(r"\D", "", str(v))
+            return int(d) if d else -1
+        # Só parcelas (mesmo valor da parcela) e não canceladas; a entrada fica de fora
+        existentes = [b["venc"] for b in boletos
+                      if "CANCEL" not in b["status"] and abs(centavos(b["valor"]) - centavos(valor)) <= 5]
+        # O Global Office recusa vencimento no passado (erro 5002): só parcelas de hoje em
+        # diante, e respeitando a regra do mês vigente (dia 25 em diante = mês seguinte).
+        from datetime import date as _date
+        ano_ini, mes_ini = mes_inicial_boletos()
+        a_partir = max(_date.today(), _date(ano_ini, mes_ini, 1))
+        calc = calcular_faltantes(primeiro, qtd, existentes, a_partir=a_partir)
+        self.log(f"Parcelas: {calc['esperados']} esperadas, {calc['existentes']} já no sistema, "
+                 f"{len(calc['faltantes'])} a criar (vencimento a partir de {a_partir:%d/%m/%Y}).")
+        if calc["vencidos"]:
+            self.log(f"{len(calc['vencidos'])} parcela(s) sem boleto já venceram ("
+                     + ", ".join(d.strftime("%m/%Y") for d in calc["vencidos"])
+                     + "): o sistema não aceita vencimento no passado, ficam de fora.", "WARNING")
+        if not calc["faltantes"]:
+            self.log(f"'{nome_cliente}' já tem todos os boletos das parcelas que ainda vão vencer. Nada a gerar.", "SUCCESS")
+            return True
+        if not calc["seguro"]:
+            self.log("Os boletos que faltam NÃO são meses seguidos ("
+                     + ", ".join(d.strftime("%m/%Y") for d in calc["faltantes"])
+                     + "). A Repetição recriaria parcelas existentes: fazer manualmente.", "WARNING")
+            return False
+
+        # +Novo
+        try:
+            self.fechar_modais_ou_telas_ativas()
+            pg.evaluate("SetaAcao('Inc')")
+            pg.wait_for_selector("#EDTCLIENTE", state="visible", timeout=20000)
+            pg.wait_for_timeout(1500)
+            ok = (self._selecionar_opcao("CBXESCRITORIOSINC", "Unidade Brasilia")
+                  and self._selecionar_opcao("CBXMODELO", "SICOOB- AC")
+                  and self._selecionar_opcao("CBXPADRAORECEITA", "Honorario_dentro"))
+            if not ok:
+                self._cancelar_inclusao()
+                return False
+
+            # Cliente pelo CPF (a lista mostra o CPF sem zeros à esquerda)
+            cpf_sem_zero = cpf.lstrip("0")
+            partes = normalizar_texto(nome_cliente).split()
+            linha_cli = self._escolher_na_lista(
+                "EDTCLIENTE", " ".join(partes[:3]), "CLIEN",
+                lambda t: (re.sub(r"\D", "", t).lstrip("0") == cpf_sem_zero))
+            if not linha_cli or normalizar_texto(pg.locator("#EDTCLIENTE").input_value()) != normalizar_texto(nome_cliente):
+                self.log(f"Cliente com CPF {dados.get('cpf')} não confirmado na lista do sistema "
+                         f"(linha={linha_cli!r}, campo={pg.locator('#EDTCLIENTE').input_value()!r}). Nada gravado.", "ERROR")
+                self._cancelar_inclusao()
+                return False
+
+            linha_item = self._escolher_na_lista(
+                "EDTITEM", "Presta", "ITEM", lambda t: "SERVICO DE COBRANCA" in normalizar_texto(t))
+            if not linha_item:
+                self._cancelar_inclusao()
+                return False
+
+            campo_valor = pg.locator("#EDTVALOR")
+            if not self._preencher_valor(campo_valor, valor):
+                self.log(f"Valor {valor} não ficou no campo. Nada gravado.", "ERROR")
+                self._cancelar_inclusao()
+                return False
+            venc = pg.locator("#EDTVENCIMENTO")
+            venc.focus(); venc.press("Control+A"); venc.press("Backspace")
+            venc.press_sequentially(re.sub(r"\D", "", calc["vencimento"]), delay=60)
+            rep = pg.locator("#EDTREPETICAO")
+            rep.focus(); rep.press("Control+A"); rep.press("Backspace")
+            rep.press_sequentially(str(calc["repeticao"]), delay=60)
+            pg.locator("#MMINSTRUCOES").focus()
+            pg.wait_for_timeout(1000)
+
+            lido = {
+                "cliente": pg.locator("#EDTCLIENTE").input_value(),
+                "item": pg.locator("#EDTITEM").input_value(),
+                "valor": campo_valor.input_value(),
+                "vencimento": venc.input_value(),
+                "repeticao": rep.input_value(),
+            }
+            conferido = (normalizar_texto(lido["cliente"]) == normalizar_texto(nome_cliente)
+                         and "SERVICO DE COBRANCA" in normalizar_texto(lido["item"])
+                         and centavos(lido["valor"]) == centavos(valor)
+                         and lido["vencimento"] == calc["vencimento"]
+                         and lido["repeticao"].strip() == str(calc["repeticao"]))
+            if pg.locator("#CKBEMAIL_CHECKBOX").is_checked() or pg.locator("#CKBREPLICAR_CHECKBOX").is_checked():
+                conferido = False
+            # fecha listas de busca e calendário que ficam por cima do formulário
+            pg.evaluate("""() => {
+                ['LISTACLIENTE', 'LISTAITEM'].forEach(id => { const e = document.getElementById(id);
+                    if (e) e.style.display = 'none'; });
+                try { window.jQuery('#EDTVENCIMENTO').datepicker('hide'); } catch (e) {}
+                document.querySelectorAll('.datepicker.dropdown-menu').forEach(d => d.style.display = 'none');
+                if (document.activeElement) document.activeElement.blur(); }""")
+            pg.wait_for_timeout(500)
+            try:
+                from baixar_boletos.config import USER_DATA_DIR
+                pg.screenshot(path=str(Path(USER_DATA_DIR) / "ultimo_boleto_novo.png"))
+            except Exception:
+                pass
+            if not conferido:
+                self.log(f"Conferência do formulário falhou: {lido}. Nada gravado.", "ERROR")
+                self._cancelar_inclusao()
+                return False
+
+            fim = calc["faltantes"][-1].strftime("%d/%m/%Y")
+            resumo = (f"Motivo: {motivo}\n\n{nome_cliente} (CPF {dados.get('cpf')})\n"
+                      f"Item: {lido['item']}\nValor: R$ {lido['valor']}\n"
+                      f"Vencimento: {lido['vencimento']}  |  Repetição: {lido['repeticao']}\n"
+                      f"= {len(calc['faltantes'])} boleto(s), de {calc['vencimento']} até {fim}\n"
+                      f"(já existem {calc['existentes']} de {calc['esperados']} parcelas)"
+                      + (f"\n\nFICAM DE FORA {len(calc['vencidos'])} parcela(s) já vencida(s) sem boleto: "
+                         + ", ".join(d.strftime("%m/%Y") for d in calc["vencidos"])
+                         + "\n(o Global Office não aceita vencimento no passado)" if calc["vencidos"] else ""))
+            self.log("Formulário conferido:\n" + resumo)
+            if (self._cancelado or not self.confirmar_gravacao or not self.confirmar_gravacao(resumo)
+                    or self._cancelado):
+                self.log("Gravação NÃO confirmada: formulário cancelado, nada gravado.", "WARNING")
+                self._cancelar_inclusao()
+                return False
+
+            pg.evaluate("""() => { const b = [...document.querySelectorAll('button')]
+                .find(b => b.offsetParent !== null && (b.getAttribute('onclick')||'').includes('Gravar()')); if (b) b.click(); }""")
+            pg.wait_for_timeout(5000)
+            msg = ""
+            try:
+                msg = " ".join(pg.locator(".sweet-alert.visible, .sweet-alert.showSweetAlert").first
+                               .inner_text(timeout=8000).split())
+                self.log(f"Mensagem do sistema: {msg[:200]}")
+                pg.evaluate("() => { const b = document.querySelector('.sweet-alert.visible button.confirm'); if (b) b.click(); }")
+                pg.wait_for_timeout(2000)
+            except Exception:
+                pass
+            if "ERRO" in normalizar_texto(msg):
+                self.log(f"O Global Office RECUSOU os boletos de '{nome_cliente}': {msg[:200]}. Nada foi gravado.", "ERROR")
+                self._cancelar_inclusao()
+                return False
+        except Exception as e:
+            self.log(f"Erro no formulário de novo boleto: {e}", "ERROR")
+            self._cancelar_inclusao()
+            return False
+
+        # Confere que os boletos apareceram
+        pg.wait_for_timeout(3000)
+        if not self._abrir_tela_boletos():
+            self.log("Gravado, mas não consegui reabrir a tela para conferir. Confira no sistema.", "WARNING")
+            return True
+        depois = self._listar_boletos_cliente(nome_cliente) or []
+        novos = calcular_faltantes(primeiro, qtd, [b["venc"] for b in depois
+                                                   if "CANCEL" not in b["status"] and abs(centavos(b["valor"]) - centavos(valor)) <= 5],
+                                   a_partir=a_partir)
+        if novos["faltantes"]:
+            self.log(f"Depois de gravar ainda faltam {len(novos['faltantes'])} boleto(s) de '{nome_cliente}'. Confira no sistema.", "WARNING")
+            return False
+        self.log(f"Boletos de '{nome_cliente}' criados e conferidos: {novos['existentes']}/{novos['esperados']} parcelas no sistema.", "SUCCESS")
+        return True
+
+    def _preencher_valor(self, campo, valor_br: str) -> bool:
+        """Apaga o conteúdo do campo de moeda e digita `valor_br` (ex.: '9.825,76').
+        Confere o resultado pelos dígitos; se a máscara do campo atrapalhar, grava via JS."""
+        alvo = re.sub(r"\D", "", valor_br)
+        try:
+            campo.click(force=True)
+            campo.press("Control+A")
+            campo.press("Delete")
+            campo.press_sequentially(valor_br, delay=40)
+            campo.press("Tab")
+            self.page.wait_for_timeout(300)
+            if re.sub(r"\D", "", campo.input_value()) == alvo:
+                return True
+
+            campo.evaluate("""(el, v) => {
+                el.value = v;
+                el.dispatchEvent(new Event('input', {bubbles: true}));
+                el.dispatchEvent(new Event('change', {bubbles: true}));
+                el.dispatchEvent(new Event('blur'));
+            }""", valor_br)
+            self.page.wait_for_timeout(300)
+            return re.sub(r"\D", "", campo.input_value()) == alvo
+        except Exception as e:
+            self.log(f"Erro ao preencher valor: {e}", "ERROR")
+            return False
+
+    def selecionar_processo_pela_lupa(self, processo: str) -> bool:
+        """Lupa (Localizar processo) > pesquisa pelo número > botão azul 'Selecionar' da linha
+        cujo número confere. Ao selecionar, o sistema volta ao formulário do acordo."""
+        self.log(f"Localizando processo '{processo}' pela lupa...")
+        digitos = re.sub(r"\D", "", processo)
+        try:
+            modal = self.page.locator("#Cadastro, div[role='dialog']").filter(has_text="Acordos Judiciais").first
+            modal.locator("button[title='Localizar processo']").first.evaluate("el => el.click()")
+            self.page.wait_for_selector("#tabela_filter input", state="visible", timeout=25000)
+            self.page.wait_for_timeout(2000)
+
+            for termo in (processo, digitos):
+                campo = self.page.locator("#tabela_filter input").first
+                campo.click(force=True)
+                self.page.keyboard.press("Control+A")
+                self.page.keyboard.press("Backspace")
+                self.page.wait_for_timeout(1500)
+                campo.press_sequentially(termo, delay=90)
+
+                # espera o grid filtrar (o grid tem ~41 mil registros e demora)
+                self.page.wait_for_timeout(1500)
+                for _ in range(40):
+                    info = self.page.locator("#tabela_info").inner_text()
+                    if re.search(r"de [\d.]{1,3}\.\d{3} registros", info) is None and "Mostrando" in info:
+                        break
+                    self.page.wait_for_timeout(1000)
+                self.page.wait_for_timeout(1500)
+
+                linhas = self.page.locator("#tabela tbody tr")
+                for i in range(linhas.count()):
+                    txt = linhas.nth(i).inner_text()
+                    if digitos and digitos in re.sub(r"\D", "", txt):
+                        self.log(f"Processo localizado no grid (linha {i + 1}). Selecionando...")
+                        linhas.nth(i).locator("button[title='Selecionar']").first.evaluate("el => el.click()")
+                        modal.wait_for(state="visible", timeout=40000)
+                        self.page.wait_for_timeout(1500)
+                        valor = self.page.locator("#EDTPROCESSO").first.input_value().strip()
+                        if re.sub(r"\D", "", valor) == digitos:
+                            self.log(f"Processo '{valor}' selecionado no formulário.", "SUCCESS")
+                            return True
+                        self.log(f"Processo no formulário ('{valor}') diferente do esperado.", "ERROR")
+                        return False
+                self.log(f"Processo não encontrado pesquisando por '{termo}'.", "WARNING")
+
+            return False
+        except Exception as e:
+            self.log(f"Erro ao selecionar processo pela lupa: {e}", "ERROR")
+            return False
+
     def preencher_e_gravar_acordo(self, dados: Dict[str, Any]) -> bool:
         modal = self.page.locator("#Cadastro, div[role='dialog']").filter(has_text="Acordos Judiciais").first
         try:
             self.page.wait_for_timeout(800)
 
-            # Processo
+            # Processo: o campo é somente leitura. Caminho único: lupa > pesquisar pelo
+            # número do processo (planilha) > Selecionar (ícone azul).
             input_proc = modal.locator("#EDTPROCESSO").first
             if input_proc.is_visible():
                 v = input_proc.input_value().strip()
-                if not v and dados.get("processo"):
-                    input_proc.fill(dados["processo"])
+                if not v and dados.get("processo") and not dados.get("_sem_processo"):
+                    if not self.selecionar_processo_pela_lupa(dados["processo"]):
+                        # Processo não encontrado após as pesquisas: a lupa tira o usuário do
+                        # formulário, então marca e reinicia o fluxo para subir SEM o processo.
+                        self.log(f"Processo '{dados['processo']}' não encontrado. O acordo será enviado SEM número de processo.", "WARNING")
+                        dados["_sem_processo"] = True
+                        return False
+                    modal = self.page.locator("#Cadastro, div[role='dialog']").filter(has_text="Acordos Judiciais").first
 
-            # Valores
-            if dados.get("valor_inicial"):
-                modal.locator("#EDTVALORINICIAL").fill(dados["valor_inicial"])
-            if dados.get("valor_limite"):
-                modal.locator("#EDTVALORLIMITE").fill(dados["valor_limite"])
+            # Valores: inicial = valor original da causa; limite = valor acordado no termo.
+            # O sistema já traz um valor pré-preenchido: apaga e digita o correto.
+            for campo, chave, rotulo in (("#EDTVALORINICIAL", "valor_inicial", "Valor inicial"),
+                                         ("#EDTVALORLIMITE", "valor_limite", "Valor limite")):
+                if not dados.get(chave):
+                    self.log(f"{rotulo} não encontrado no termo nem na planilha. Campo mantido como está.", "WARNING")
+                    continue
+                origem = dados.get(f"origem_{chave}", "planilha")
+                if not self._preencher_valor(modal.locator(campo).first, dados[chave]):
+                    self.log(f"{rotulo} não ficou com R$ {dados[chave]}. Acordo NÃO será gravado.", "ERROR")
+                    return False
+                self.log(f"{rotulo} preenchido: R$ {dados[chave]} (origem: {origem}).")
 
             # Sentença
             if dados.get("tem_sentenca") and dados.get("arquivo_sentenca"):
@@ -556,13 +1071,16 @@ class AcordoService:
             btn_gravar.click(no_wait_after=True)
             self.page.wait_for_timeout(3500)
 
-            # Confirma SweetAlerts
+            # Confirma SweetAlerts (clique via JS: o IWLocker bloqueia clique real).
+            # Se a página navegar (gravação concluída), o loop termina sem erro.
             for _ in range(2):
-                sweet = self.page.locator(".sweet-alert.visible").first
-                if sweet.is_visible(timeout=3000):
-                    btn_conf = sweet.locator("button.confirm, button:has-text('Sim'), button:has-text('OK')").first
-                    btn_conf.click(no_wait_after=True)
+                try:
+                    sweet = self.page.locator(".sweet-alert.visible").first
+                    sweet.wait_for(state="visible", timeout=4000)
+                    sweet.locator("button.confirm").first.evaluate("el => el.click()")
                     self.page.wait_for_timeout(2500)
+                except Exception:
+                    break
 
             self.log(f"Acordo do cliente '{dados['nome_cliente']}' GRAVADO com sucesso!", "SUCCESS")
             return True
@@ -570,6 +1088,73 @@ class AcordoService:
         except Exception as e:
             self.log(f"Erro ao gravar acordo: {e}", "ERROR")
             return False
+
+    def acordo_ja_existe(self, nome_cliente: str, qtd_esperada: int = 0) -> Optional[bool]:
+        """Um acordo gravado gera os boletos do cliente em Cadastro de Boletos (frmBoletoAvulso).
+        O acordo só é considerado existente se o sistema tiver pelo menos `qtd_esperada`
+        vencimentos distintos (parcelas do termo/planilha). Poucos boletos = acordo incompleto
+        ou outro acordo, e o envio segue."""
+        try:
+            self.fechar_modais_ou_telas_ativas()
+            self.page.evaluate("if (typeof window.SetaAcao === 'function') window.SetaAcao('Menu', 'frmBoletoAvulso');")
+            self.page.wait_for_selector("#tabela_filter input", state="visible", timeout=20000)
+            self.page.wait_for_timeout(1500)
+            if not self._empresa_ac_ativa() and not self._garantir_empresa_ac_na_tela_boletos():
+                return None  # não dá para afirmar nada fora da empresa AC COBRANÇA
+
+            # 100 por página: o grid mostra 10 por padrão e subcontaria as parcelas
+            try:
+                sel = self.page.locator('select[name="tabela_length"]').first
+                if sel.is_visible():
+                    sel.select_option('100')
+                    self.page.wait_for_timeout(1000)
+            except Exception:
+                pass
+
+            campo = self.page.locator("#tabela_filter input").first
+            campo.click(force=True)
+            campo.fill("")
+            campo.fill(nome_cliente)
+            self.page.keyboard.press("Enter")
+            self.page.wait_for_timeout(2000)
+            try:
+                self.page.wait_for_selector("#tabela_processing", state="hidden", timeout=10000)
+            except Exception:
+                pass
+            self.page.wait_for_timeout(800)
+
+            partes = [p for p in normalizar_texto(nome_cliente).split() if len(p) > 2]
+            vencimentos = set()
+            for r in self.page.locator("#tabela tbody tr").all():
+                txt = r.inner_text()
+                if "nenhum registro" in txt.lower():
+                    continue
+                palavras = set(normalizar_texto(txt).split())
+                if partes and partes[0] in palavras and partes[-1] in palavras:
+                    datas = re.findall(r'\b\d{2}/\d{2}/\d{4}\b', txt)
+                    vencimentos.add(datas[1] if len(datas) >= 2 else (datas[0] if datas else txt))
+            total = len(vencimentos)
+            self.log(f"Verificação de acordo: {total} vencimento(s) distintos de '{nome_cliente}' no sistema; esperado pelo termo/planilha: {qtd_esperada}.")
+            if total == 0:
+                return False
+            if total < qtd_esperada:
+                self.log(f"Acordo INCOMPLETO no sistema ({total}/{qtd_esperada}). O acordo será enviado.", "WARNING")
+                return False
+            return True
+        except Exception as e:
+            # Sem conseguir ver a tela de boletos não dá para afirmar que o acordo não existe:
+            # subir "às cegas" pode duplicar. Tenta mais uma vez; se falhar, não processa.
+            if not getattr(self, "_verificando_de_novo", False):
+                self.log(f"Não consegui verificar se o acordo já existe ({str(e).splitlines()[0][:100]}). "
+                         "Tentando de novo...", "WARNING")
+                self._verificando_de_novo = True
+                try:
+                    self.page.wait_for_timeout(3000)
+                    return self.acordo_ja_existe(nome_cliente, qtd_esperada)
+                finally:
+                    self._verificando_de_novo = False
+            self.log("Não consegui verificar se o acordo já existe. Para não duplicar, o acordo NÃO será subido.", "ERROR")
+            return None
 
     def baixar_boletos_cliente(self, nome_cliente: str, visivel: bool = False) -> Dict[str, Any]:
         self.log(f"Iniciando download dos boletos de '{nome_cliente}'...")
@@ -710,6 +1295,7 @@ class AcordoService:
         self.log(f"INICIANDO ENVIO DO ACORDO JUDICIAL: {nome_cliente}")
         self.log("=" * 60)
 
+        self.gravou_algo = False
         self.garantir_sessao_ativa(visivel=visivel)
 
         dados = self.parser.carregar_dados_cliente(nome_cliente)
@@ -722,18 +1308,60 @@ class AcordoService:
             return False
 
         # ETAPA 1: Acordo
-        ok_tela = self.acessar_cadastro_devedores(visivel=visivel)
-        if not ok_tela:
-            return False
+        # O popup "Horário registrado com sucesso" faz o sistema recarregar a página e
+        # derruba o formulário aberto. Se isso acontecer, refaz o caminho (o horário já
+        # estará registrado). Se o acordo chegou a ser gravado, abrir_modal_acordo
+        # detecta "já tem acordo" e devolve None, evitando duplicidade.
+        max_tentativas = 3
+        for tentativa in range(1, max_tentativas + 1):
+            self._parar_se_cancelado()
+            if tentativa > 1:
+                self.log(f"Tentativa {tentativa}/{max_tentativas} de subir o acordo de '{nome_cliente}'...", "WARNING")
+                self.page.wait_for_timeout(2000)
 
-        achou = self.pesquisar_devedor_no_grid(nome_cliente, visivel=visivel)
-        if not achou:
-            return False
+            # Reconhece acordo já subido (evita duplicar) antes de qualquer tentativa
+            existe = self.acordo_ja_existe(nome_cliente, int(dados.get("qtd_parcelas") or 0))
+            if existe is None:
+                # Não deu para conferir (tela de boletos/empresa): não sobe às cegas, tenta de novo
+                self.log(f"Acordo de '{nome_cliente}' não conferido nesta tentativa: não será subido agora.", "WARNING")
+                continue
+            if existe:
+                self.log(f"'{nome_cliente}' JÁ POSSUI ACORDO no sistema. Pulando o envio.", "SUCCESS")
+                break
 
-        abriu = self.abrir_modal_acordo(nome_cliente)
-        if abriu is True:
-            gravou = self.preencher_e_gravar_acordo(dados)
-            if not gravou: return False
+            self._parar_se_cancelado()
+            if not self.acessar_cadastro_devedores(visivel=visivel):
+                continue
+            self._parar_se_cancelado()
+            if not self.pesquisar_devedor_no_grid(nome_cliente, visivel=visivel):
+                continue
+            self._parar_se_cancelado()
+
+            abriu = self.abrir_modal_acordo(nome_cliente)
+            if abriu == SEM_VALORES_GEAP:
+                if not self.criar_boletos_faltantes(nome_cliente, dados):
+                    return False
+                self.gravou_algo = True
+                break
+            if abriu is None:
+                break
+            if abriu is False:
+                continue
+            self._parar_se_cancelado()
+            if self.preencher_e_gravar_acordo(dados):
+                self.gravou_algo = True
+                break
+        else:
+            # Acordo não subiu: cria as parcelas que faltam como boletos avulsos (+NOVO).
+            # É seguro mesmo se o devedor não foi achado pelo nome: o cliente do boleto é
+            # escolhido pelo CPF da planilha, e boletos que já existem não são recriados.
+            self._parar_se_cancelado()
+            self.log(f"Não foi possível subir o acordo de '{nome_cliente}' após {max_tentativas} tentativas. "
+                     "Indo criar as parcelas como boletos avulsos.", "WARNING")
+            if not self.criar_boletos_faltantes(nome_cliente, dados,
+                                                motivo=f"acordo não subiu após {max_tentativas} tentativas"):
+                return False
+            self.gravou_algo = True
 
         # ETAPA 2: Download dos boletos (executado no máximo UMA ÚNICA VEZ por cliente)
         if baixar_boletos:
@@ -792,3 +1420,31 @@ class AcordoService:
         except Exception as e:
             self.log(f"Erro ao ler planilha: {e}", "ERROR")
             return []
+
+    def lista_parcelados_com_status(self, caminho_planilha: Optional[str] = None) -> list:
+        """[(nome, status)] dos PARCELADOS, com o status da coluna 'ENVIO DE BOLETOS'
+        normalizado (sem acento, maiúsculo; vazio = "")."""
+        if caminho_planilha:
+            self.parser.caminho_planilha = Path(caminho_planilha)
+            self.parser._cached_ws = None
+        ws = self.parser._obter_worksheet()
+        if ws is None:
+            return []
+
+        col_map = {}
+        for c in range(1, ws.max_column + 1):
+            h = ws.cell(1, c).value
+            if h:
+                col_map[normalizar_texto(str(h))] = c
+        idx_nome = col_map.get("BENEFICIARIO", 4)
+        idx_cond = col_map.get("CONDICOES DO ACORDO", 8)
+        idx_envio = col_map.get("ENVIO DE BOLETOS", 1)
+
+        clientes = []
+        for r in range(2, ws.max_row + 1):
+            nome = str(ws.cell(r, idx_nome).value or "").strip()
+            cond = str(ws.cell(r, idx_cond).value or "").upper()
+            if nome and "PARCEL" in cond:
+                status = normalizar_texto(str(ws.cell(r, idx_envio).value or ""))
+                clientes.append((nome, status))
+        return clientes

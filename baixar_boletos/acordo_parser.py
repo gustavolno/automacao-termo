@@ -24,6 +24,11 @@ from ctypes import wintypes
 import openpyxl
 import pymupdf
 
+try:
+    from baixar_boletos.config import PLANILHA_ONLINE_FILE, PLANILHA_DROPBOX_FILE
+except ImportError:
+    from config import PLANILHA_ONLINE_FILE, PLANILHA_DROPBOX_FILE
+
 
 def read_locked_file_bytes(filepath: str) -> bytes:
     """Lê bytes de um arquivo mesmo com lock exclusivo do Excel no Windows usando CreateFileW."""
@@ -279,6 +284,11 @@ class AcordoParser:
         if custom_path and Path(custom_path).exists():
             return Path(custom_path)
 
+        # Planilha OFICIAL: a cópia mais recente entre a baixada do OneDrive e a do Dropbox
+        oficiais = [p for p in (PLANILHA_ONLINE_FILE, PLANILHA_DROPBOX_FILE) if p.exists()]
+        if oficiais:
+            return max(oficiais, key=lambda p: p.stat().st_mtime).resolve()
+
         candidatos = [
             Path("devedores_encontrados.xlsx"),
             Path("planilha_jaci.xlsx"),
@@ -384,6 +394,27 @@ class AcordoParser:
 
         qtd_encontrada = max(qtd_boletos, qtd_boletos + qtd_comprovantes)
         completo = (qtd_boletos >= qtd_esperada) or ((qtd_boletos + qtd_comprovantes) >= qtd_esperada)
+
+        # Regra do mês vigente: só importam as parcelas do mês atual em diante (meses que já
+        # passaram não são baixados). Completo = todas essas parcelas já estão na pasta.
+        if not completo and dados.get("primeiro_vencimento"):
+            try:
+                from baixar_boletos.boletos_faltantes import cronograma_parcelas
+                from baixar_boletos.config import mes_inicial_boletos
+            except ImportError:
+                from boletos_faltantes import cronograma_parcelas
+                from config import mes_inicial_boletos
+            inicio = mes_inicial_boletos()
+            esperados = {(d.year, d.month) for d in cronograma_parcelas(dados["primeiro_vencimento"], qtd_esperada)
+                         if (d.year, d.month) >= inicio}
+            na_pasta = set()
+            for f in boletos:
+                m = re.search(r"BOLETO\s*-\s*(?:ENTRADA\s*-\s*)?(\d{4})-(\d{2})", f.name, re.I)
+                if m:
+                    na_pasta.add((int(m.group(1)), int(m.group(2))))
+            if esperados <= na_pasta:
+                completo = True
+                qtd_encontrada, qtd_esperada = len(esperados & na_pasta), len(esperados)
 
         return {
             "completo": completo,
@@ -550,6 +581,32 @@ class AcordoParser:
                     if valor_acordo_str and valor_acordo_str in texto_completo:
                         resultado["validacao_pdf_notas"].append(f"Valor do acordo ({valor_acordo_str}) confirmado no PDF.")
 
+                    # Valores do formulário de acordo: o TERMO manda; a planilha é reserva.
+                    #   Valor inicial = valor original da causa ("valor atualizado totalizando R$ X")
+                    #   Valor limite  = valor acordado ("pagamento do valor de R$ X" / "quantia de R$ X")
+                    texto_1l = " ".join(texto_completo.split())
+                    m_orig = re.search(r"valor atualizado totalizando\s*R\$\s*([\d.]+,\d{2})", texto_1l, re.I)
+                    m_acordo = re.search(r"(?:pagamento do valor de|pagar a quantia de)\s*R\$\s*([\d.]+,\d{2})", texto_1l, re.I)
+                    for chave, m, rotulo in (("valor_inicial", m_orig, "Valor inicial (original)"),
+                                             ("valor_limite", m_acordo, "Valor limite (acordado)")):
+                        if m:
+                            v_termo = m.group(1)
+                            if resultado[chave] and resultado[chave] != v_termo:
+                                resultado["validacao_pdf_notas"].append(
+                                    f"{rotulo}: termo R$ {v_termo} difere da planilha R$ {resultado[chave]}. Usando o do termo.")
+                            resultado[chave] = v_termo
+                            resultado[f"origem_{chave}"] = "termo"
+                    if m_acordo:
+                        resultado["valor_homologacao"] = resultado["valor_limite"]
+
+                    # Valor da parcela do TERMO (usado nos boletos criados manualmente).
+                    # Ex.: "mais 15 parcelas de R$ 335,39" / "24 parcelas de R$295,33"
+                    m_parc = re.search(r"(\d+)\s*\(?[a-zç\s]*\)?\s*parcelas(?:\s+mensais)?,?\s*(?:no valor\s*)?de\s*R\$\s*([\d.]+,\d{2})",
+                                       texto_1l, re.I)
+                    if m_parc:
+                        resultado["valor_parcela_termo"] = m_parc.group(2)
+                        resultado["qtd_parcelas_termo"] = int(m_parc.group(1))
+
                     qtd = resultado["qtd_parcelas"]
                     if qtd > 0 and (f"{qtd} prestac" in normalizar_texto(texto_completo) or f"{qtd} parcel" in normalizar_texto(texto_completo) or f"{qtd}X" in normalizar_texto(texto_completo)):
                         resultado["validacao_pdf_notas"].append(f"Quantidade de parcelas ({qtd}) confirmada no PDF.")
@@ -567,6 +624,15 @@ class AcordoParser:
                     resultado["validacao_pdf_notas"].append(f"Erro ao ler PDF do termo: {e_pdf}")
         else:
             resultado["validacao_pdf_notas"].append("Pasta do cliente não encontrada no Dropbox.")
+
+        # Valor dos boletos criados manualmente: sempre o do termo; se o termo for escaneado
+        # (sem texto legível), usa o da planilha.
+        if resultado.get("valor_parcela_termo"):
+            resultado["valor_parcela_boleto"] = resultado["valor_parcela_termo"]
+            resultado["origem_valor_parcela"] = "termo"
+        else:
+            resultado["valor_parcela_boleto"] = resultado["valor_parcela"]
+            resultado["origem_valor_parcela"] = "planilha (termo sem texto legível)"
 
         resultado["sucesso"] = True
         return resultado

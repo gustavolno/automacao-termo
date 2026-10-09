@@ -12,6 +12,7 @@ if "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
         os.environ.get("LOCALAPPDATA", ""), "ms-playwright"
     )
 
+from baixar_boletos.login_helper import login_manual
 from baixar_boletos.config import (
     GLOBAL_OFFICE_URL,
     GLOBAL_OFFICE_LOGIN,
@@ -19,13 +20,16 @@ from baixar_boletos.config import (
     GLOBAL_OFFICE_PASS,
     STATE_FILE,
     USER_AGENT,
+    obter_user_agent,
     formatar_nome_arquivo_boleto,
     obter_pasta_boletos_cliente,
-    normalizar_texto
+    normalizar_texto,
+    mes_inicial_boletos,
+    situacao_empresa
 )
 
 class DownloaderService:
-    def __init__(self, log_callback=None, progress_callback=None):
+    def __init__(self, log_callback=None, progress_callback=None, cancelado=None):
         self.log_callback = log_callback or (lambda msg: print(msg))
         self.progress_callback = progress_callback
         self.playwright = None
@@ -33,6 +37,11 @@ class DownloaderService:
         self.context = None
         self.page = None
         self._cancelado = False
+        self._cancelado_externo = cancelado or (lambda: False)  # botão PARAR da tela
+
+    @property
+    def parado(self) -> bool:
+        return self._cancelado or self._cancelado_externo()
 
     def log(self, mensagem: str, nivel: str = "INFO"):
         hora = time.strftime("%H:%M:%S")
@@ -44,31 +53,7 @@ class DownloaderService:
 
     def _esperar_login_manual(self):
         self.log("Sessão não autenticada. Preenchendo credenciais...")
-        browser = self.playwright.chromium.launch(headless=False)
-        context = browser.new_context(user_agent=USER_AGENT)
-        page = context.new_page()
-        page.goto(GLOBAL_OFFICE_URL)
-
-        if GLOBAL_OFFICE_LOGIN:
-            try: page.locator("#EDTLOGIN").fill(GLOBAL_OFFICE_LOGIN)
-            except Exception: pass
-        if GLOBAL_OFFICE_USER:
-            try: page.locator("#EDTUSUARIO").fill(GLOBAL_OFFICE_USER)
-            except Exception: pass
-        if GLOBAL_OFFICE_PASS:
-            try: page.locator("#EDTSENHA").fill(GLOBAL_OFFICE_PASS)
-            except Exception: pass
-
-        self.log("Por favor, resolva o reCAPTCHA na janela aberta do navegador e clique em ENTRAR.")
-        
-        try:
-            page.locator("#EDTLOGIN").wait_for(state="hidden", timeout=0)
-            page.wait_for_timeout(3000)
-            context.storage_state(path=STATE_FILE)
-            self.log("Login efetuado com sucesso!")
-            self.log(f"Sessão salva com sucesso em '{STATE_FILE}'.")
-        finally:
-            browser.close()
+        login_manual(self.playwright, self.log)
 
     def _testar_sessao_ativa(self) -> bool:
         """Verifica ativamente se o backend do servidor reconhece a sessão."""
@@ -121,7 +106,7 @@ class DownloaderService:
             )
             self.context = self.browser.new_context(
                 storage_state=str(state_file_path),
-                user_agent=USER_AGENT,
+                user_agent=obter_user_agent(),
                 accept_downloads=True,
                 viewport={"width": 1920, "height": 1080}
             )
@@ -219,8 +204,29 @@ class DownloaderService:
         except Exception as e:
             self.log(f"Aviso ao selecionar empresa: {e}", "WARNING")
 
-    def _acessar_cadastro_boletos(self):
+    def _remover_overlays(self):
+        """Remove do DOM overlays residuais (ex.: SweetAlert deixado pela gravação do acordo)
+        que interceptam os cliques. Não clica em nenhum botão."""
+        try:
+            self.page.evaluate("""() => {
+                if (typeof window.ReleaseLock === 'function') window.ReleaseLock();
+                document.querySelectorAll('.sweet-overlay, .sweet-alert, .modal-backdrop, #iw-dlg-overlay, .iw-dlg-overlayCSS')
+                    .forEach(el => { try { el.remove(); } catch (e) {} });
+                const lk = document.getElementById('IWLocker');
+                if (lk) lk.style.display = 'none';
+                document.body.classList.remove('stop-scrolling', 'modal-open');
+            }""")
+        except Exception:
+            pass
+
+    def _acessar_cadastro_boletos(self, conferir_empresa: bool = True):
+        self._abrir_tela_boletos()
+        if conferir_empresa:
+            self._garantir_empresa_ac()
+
+    def _abrir_tela_boletos(self):
         self.log("Acessando tela de Cadastro de Boletos (frmBoletoAvulso)...")
+        self._remover_overlays()
         try:
             self.page.evaluate("if (typeof window.SetaAcao === 'function') { window.SetaAcao('Menu', 'frmBoletoAvulso'); }")
             self.log("Aguardando carregamento da tabela (#tabela)...")
@@ -249,13 +255,48 @@ class DownloaderService:
                 self.log(f"Erro ao acessar tela de boletos: {e2}", "ERROR")
                 raise e2
 
+    def _garantir_empresa_ac(self):
+        """O Modelo 'SICOOB- AC' só existe com a empresa AC COBRANÇA ativa. Se outra empresa
+        estiver ativa (ex.: alguém trocou no mesmo login), seleciona de novo e reabre a tela."""
+        situacao = situacao_empresa(self.page)
+        if situacao == "AC":
+            return
+        if situacao == "INDEFINIDO":
+            # Lista de modelos não carregou: não dá para afirmar empresa errada. Trocar de
+            # empresa à toa derruba a tela de boletos, então segue (a busca é por nome).
+            self.log("Não deu para confirmar a empresa (lista de modelos vazia). Seguindo.", "WARNING")
+            return
+        self.log("A empresa ativa NÃO é a AC COBRANÇA (modelos de outra empresa na tela). Selecionando de novo...", "WARNING")
+        self._selecionar_empresa()
+        self._acessar_cadastro_boletos(conferir_empresa=False)
+        if situacao_empresa(self.page) == "OUTRA":
+            raise RuntimeError("empresa AC COBRANÇA não está ativa no Global Office")
+
     def _pesquisar_cliente_no_grid(self, nome_cliente: str):
         self.log(f"Iniciando busca automática no grid para: '{nome_cliente}'...")
+        self._remover_overlays()
         try:
             campo_busca = self.page.locator('#tabela_filter input[type="search"]')
             campo_busca.wait_for(state="visible", timeout=10000)
             campo_busca.scroll_into_view_if_needed()
-            campo_busca.click()
+            try:
+                campo_busca.click(timeout=5000)
+            except Exception:
+                # Algo ainda cobre o campo: pesquisa direto pela API do DataTables
+                self.log("Campo de pesquisa coberto; pesquisando pela API da tabela...", "WARNING")
+                self._remover_overlays()
+                with self.page.expect_response(lambda r: "callback=tabela" in r.url and r.status == 200, timeout=15000):
+                    self.page.evaluate("""(nome) => {
+                        const inp = document.querySelector('#tabela_filter input');
+                        if (inp) inp.value = nome;
+                        window.jQuery('#tabela').DataTable().search(nome).draw();
+                    }""", nome_cliente)
+                self.page.wait_for_timeout(2000)
+                try:
+                    self.page.wait_for_selector('#tabela_processing', state='hidden', timeout=10000)
+                except Exception: pass
+                self.log(f"Status do grid após busca: {self.page.locator('#tabela_info').inner_text().strip()}")
+                return
 
             self.page.keyboard.press("Control+A")
             self.page.keyboard.press("Backspace")
@@ -351,6 +392,8 @@ class DownloaderService:
             else:
                 usou_sessao_propria = True
                 self.iniciar_sessao(visivel=visivel)
+            if self.parado:
+                raise RuntimeError("download parado pelo usuário")
             self._acessar_cadastro_boletos()
 
             # 1. Pesquisa o cliente no grid
@@ -369,7 +412,9 @@ class DownloaderService:
             todas_linhas = self.page.locator('#tabela tbody tr').all()
             self.log(f"Total de linhas brutas encontradas no grid: {len(todas_linhas)}")
 
-            partes_cliente = [p.upper() for p in nome_cliente.strip().split() if len(p) > 2 and p.upper() not in ["DE", "DA", "DO", "DOS", "DAS"]]
+            # Comparação sem acentos: o grid pode trazer 'MARILIO ... REGO' para 'MARÍLIO ... RÊGO'
+            partes_cliente = [p for p in normalizar_texto(nome_cliente).split()
+                              if len(p) > 2 and p not in ["DE", "DA", "DO", "DOS", "DAS"]]
 
             # Pré-coleta dos boletos para ordenação cronológica universal
             lista_boletos = []
@@ -382,8 +427,9 @@ class DownloaderService:
                 if len(colunas) <= max(idx_cliente, idx_valor, idx_vencimento):
                     continue
 
-                nome_na_linha = colunas[idx_cliente].inner_text().strip().upper()
-                matches = sum(1 for p in partes_cliente if p in nome_na_linha)
+                nome_na_linha = normalizar_texto(colunas[idx_cliente].inner_text())
+                palavras_na_linha = set(nome_na_linha.split())
+                matches = sum(1 for p in partes_cliente if p in palavras_na_linha)
                 if matches < min(2, len(partes_cliente)):
                     continue
 
@@ -453,10 +499,14 @@ class DownloaderService:
             valores_validos = [b["valor"] for b in lista_boletos if b["valor"] > 0]
             valor_padrao = max(set(valores_validos), key=valores_validos.count) if valores_validos else 0
 
+            mes_inicial = mes_inicial_boletos()
+            pulados_mes = 0
+            self.log(f"Regra do mês vigente: só boletos com vencimento a partir de {mes_inicial[1]:02d}/{mes_inicial[0]}.")
+
             # 4. Itera e baixa os boletos com nomenclatura cronológica por data (ISO)
             for idx, item in enumerate(lista_boletos, start=1):
-                if self._cancelado:
-                    self.log("Operação cancelada pelo usuário.", "WARNING")
+                if self.parado:
+                    self.log("Download PARADO pelo usuário.", "WARNING")
                     break
 
                 linha = item["linha"]
@@ -472,6 +522,12 @@ class DownloaderService:
                     )
                 )
                 tipo_str = "ENTRADA" if eh_entrada else "PARCELA"
+
+                # Boletos de meses que já passaram não interessam (regra do mês vigente)
+                dt = item["dt_venc"]
+                if dt != datetime.max and (dt.year, dt.month) < mes_inicial:
+                    pulados_mes += 1
+                    continue
 
                 self.log(f"--- Processando boleto {idx} de {total_encontrados} [{tipo_str}] ---")
                 self.log(f"Vencimento: {vencimento} | Valor: R$ {item['valor']:.2f}")
@@ -622,6 +678,8 @@ class DownloaderService:
                     )
 
             final_status = f"Concluído: {len(boletos_salvos)} de {total_encontrados} boletos baixados."
+            if pulados_mes:
+                final_status += f" ({pulados_mes} de meses anteriores pulados)"
             self.log(final_status)
             if self.progress_callback:
                 self.progress_callback(
@@ -635,6 +693,7 @@ class DownloaderService:
             return {
                 "total_encontrados": total_encontrados,
                 "total_baixados": len(boletos_salvos),
+                "pulados_mes_anterior": pulados_mes,
                 "boletos": boletos_salvos,
                 "destino": str(pasta_destino)
             }
@@ -647,8 +706,13 @@ class DownloaderService:
                 self.fechar_sessao()
 
     def fechar_sessao(self):
-        try:
-            if self.context: self.context.close()
-            if self.browser: self.browser.close()
-            if self.playwright: self.playwright.stop()
-        except Exception: pass
+        # Cada passo isolado: um close() com erro (navegador já fechado) não pode impedir o
+        # stop(), senão a próxima sessão falha com "Sync API inside the asyncio loop".
+        for passo in (lambda: self.context and self.context.close(),
+                      lambda: self.browser and self.browser.close(),
+                      lambda: self.playwright and self.playwright.stop()):
+            try:
+                passo()
+            except Exception:
+                pass
+        self.context = self.browser = self.playwright = self.page = None

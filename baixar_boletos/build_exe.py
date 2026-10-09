@@ -52,6 +52,10 @@ def compilar():
         "--hidden-import", "pymupdf",
         "--hidden-import", "fitz",
         "--hidden-import", "openpyxl",
+        "--hidden-import", "baixar_boletos.email_service",
+        "--hidden-import", "baixar_boletos.planilha_sync",
+        "--hidden-import", "baixar_boletos.login_helper",
+        "--hidden-import", "baixar_boletos.boletos_faltantes",
         str(modulo_dir / "gui.py")
     ]
 
