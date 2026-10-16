@@ -456,7 +456,9 @@ class AcordoParser:
             "primeiro_vencimento": "",
             "pasta_dropbox": None,
             "documentos_encontrados": [],
-            "validacao_pdf_notas": []
+            "validacao_pdf_notas": [],
+            "termo_lido": False,
+            "divergencias": [],   # [(campo, valor do termo, valor da planilha)]: vale o do termo
         }
 
         ws = self._obter_worksheet()
@@ -606,6 +608,32 @@ class AcordoParser:
                     if m_parc:
                         resultado["valor_parcela_termo"] = m_parc.group(2)
                         resultado["qtd_parcelas_termo"] = int(m_parc.group(1))
+
+                    # Demais campos do acordo: o TERMO manda; divergência da planilha fica anotada.
+                    # Ex.: "R$ 558,77 (...), referente a entrada do parcelamento com vencimento para o dia 05/09/2026"
+                    #      "iniciando o pagamento das parcelas em 10/10/2026"
+                    m_ent = re.search(r"R\$\s*([\d.]+,\d{2})\s*(?:\([^)]*\))?\s*,?\s*referente\s+[aà]\s+entrada\D{0,80}?(\d{2}/\d{2}/\d{4})",
+                                      texto_1l, re.I)
+                    m_venc = re.search(r"iniciando\s+o\s+pagamento\s+das\s+parcelas\s+em\s+(\d{2}/\d{2}/\d{4})", texto_1l, re.I)
+                    do_termo = {
+                        "valor_entrada": m_ent.group(1) if m_ent else None,
+                        "data_entrada": m_ent.group(2) if m_ent else None,
+                        "qtd_parcelas": int(m_parc.group(1)) if m_parc else None,
+                        "valor_parcela": m_parc.group(2) if m_parc else None,
+                        "primeiro_vencimento": m_venc.group(1) if m_venc else None,
+                    }
+                    for chave, v_termo in do_termo.items():
+                        if v_termo is None:
+                            continue
+                        v_plan = resultado.get(chave)
+                        iguais = (re.sub(r"\D", "", str(v_plan)) == re.sub(r"\D", "", str(v_termo))) if v_plan else False
+                        if v_plan and not iguais:
+                            resultado["divergencias"].append((chave, v_termo, v_plan))
+                        resultado[chave] = v_termo
+                        resultado[f"origem_{chave}"] = "termo"
+                    if m_ent:
+                        resultado["tem_entrada"] = True
+                    resultado["termo_lido"] = bool(m_parc)
 
                     qtd = resultado["qtd_parcelas"]
                     if qtd > 0 and (f"{qtd} prestac" in normalizar_texto(texto_completo) or f"{qtd} parcel" in normalizar_texto(texto_completo) or f"{qtd}X" in normalizar_texto(texto_completo)):

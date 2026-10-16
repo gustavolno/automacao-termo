@@ -324,6 +324,25 @@ class DownloaderService:
         except Exception as e:
             self.log(f"Erro na digitação da busca: {e}", "WARNING")
 
+    def _esperar_grid_do_cliente(self, nome_cliente: str, timeout_s: int = 15):
+        """A resposta que libera a busca pode ser a da 1ª letra digitada: a tabela ainda mostra
+        o cliente anterior. Espera todas as linhas terem o nome buscado (ou a tabela vazia)."""
+        partes = [p for p in normalizar_texto(nome_cliente).split()
+                  if len(p) > 2 and p not in ("DE", "DA", "DO", "DOS", "DAS")][:2]
+        for _ in range(timeout_s * 2):
+            try:
+                textos = [normalizar_texto(t) for t in self.page.locator("#tabela tbody tr").all_inner_texts()]
+                processando = self.page.locator("#tabela_processing").is_visible()
+            except Exception:
+                textos, processando = [], True
+            if not processando and textos:
+                if all("NENHUM REGISTRO" in t for t in textos):
+                    return
+                if all(all(p in set(t.split()) for p in partes) for t in textos):
+                    return
+            self.page.wait_for_timeout(500)
+        self.log(f"A tabela não mostrou só linhas de '{nome_cliente}' em {timeout_s}s; seguindo com o que há.", "WARNING")
+
     def _ajustar_paginacao_para_100(self):
         try:
             self.log("Ajustando paginação para 100 registros para capturar todas as parcelas...")
@@ -401,6 +420,7 @@ class DownloaderService:
 
             # 2. Ajusta para 100 registros
             self._ajustar_paginacao_para_100()
+            self._esperar_grid_do_cliente(nome_cliente)
 
             pasta_destino = self._resolver_pasta_destino(nome_cliente)
             self.log(f"Pasta de destino garantida: {pasta_destino}")
@@ -499,6 +519,26 @@ class DownloaderService:
             valores_validos = [b["valor"] for b in lista_boletos if b["valor"] > 0]
             valor_padrao = max(set(valores_validos), key=valores_validos.count) if valores_validos else 0
 
+            # Boleto vencido que foi reemitido (mesmo mês e valor, vencimento ainda por vir): o
+            # vencido sai da lista e o novo sobrescreve o arquivo daquele mês na pasta.
+            hoje = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+            validos = [b for b in lista_boletos if b["dt_venc"] != datetime.max and b["dt_venc"] >= hoje]
+            reemitidos, sem_vencidos = set(), []
+            for b in lista_boletos:
+                dt = b["dt_venc"]
+                if dt == datetime.max or dt >= hoje:
+                    sem_vencidos.append(b)
+                    continue
+                novo = next((v for v in validos if (v["dt_venc"].year, v["dt_venc"].month) == (dt.year, dt.month)
+                             and abs(v["valor"] - b["valor"]) < 0.06), None)
+                if novo:
+                    reemitidos.add(id(novo))
+                    self.log(f"Boleto vencido em {b['vencimento']} foi reemitido para {novo['vencimento']}: baixando o novo.")
+                else:
+                    sem_vencidos.append(b)
+            lista_boletos = sem_vencidos
+            total_encontrados = len(lista_boletos)
+
             mes_inicial = mes_inicial_boletos()
             pulados_mes = 0
             self.log(f"Regra do mês vigente: só boletos com vencimento a partir de {mes_inicial[1]:02d}/{mes_inicial[0]}.")
@@ -528,6 +568,11 @@ class DownloaderService:
                 if dt != datetime.max and (dt.year, dt.month) < mes_inicial:
                     pulados_mes += 1
                     continue
+                # BOLETOS_SO_MES=AAAA-MM (opcional): baixa só o boleto desse mês, ex.: adiantar só o de outubro
+                so_mes = os.environ.get("BOLETOS_SO_MES", "")
+                if so_mes and dt != datetime.max and f"{dt.year}-{dt.month:02d}" != so_mes:
+                    pulados_mes += 1
+                    continue
 
                 self.log(f"--- Processando boleto {idx} de {total_encontrados} [{tipo_str}] ---")
                 self.log(f"Vencimento: {vencimento} | Valor: R$ {item['valor']:.2f}")
@@ -537,7 +582,11 @@ class DownloaderService:
                 caminho_final = pasta_destino / nome_arquivo
 
                 # Se o arquivo já existe no destino com tamanho válido, pula para a próxima parcela
-                if caminho_final.exists() and caminho_final.stat().st_size > 1024:
+                # O boleto do mês vigente é sempre baixado de novo: pode ter sido reemitido no
+                # sistema (vencido -> novo vencimento) e o arquivo da pasta ser o antigo.
+                mes_vigente = dt != datetime.max and (dt.year, dt.month) == mes_inicial
+                if (id(item) not in reemitidos and not mes_vigente
+                        and caminho_final.exists() and caminho_final.stat().st_size > 1024):
                     t_kb = round(caminho_final.stat().st_size / 1024, 1)
                     self.log(f"Boleto já existente na pasta ({t_kb} KB): {nome_arquivo}. Pulando download.")
                     boletos_salvos.append({

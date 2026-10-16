@@ -1,4 +1,4 @@
-﻿"""
+"""
 acordo_service.py
 Serviço de automação Playwright para inclusão de Acordos Judiciais e Download no Global Office.
 """
@@ -24,6 +24,7 @@ from baixar_boletos.config import (
     formatar_nome_arquivo_boleto,
     obter_pasta_boletos_cliente,
     mes_inicial_boletos,
+    DIAS_VENCIMENTO_ATRASADO,
     situacao_empresa
 )
 from baixar_boletos.acordo_parser import AcordoParser, normalizar_texto
@@ -409,16 +410,25 @@ class AcordoService:
                 return False
 
 
-    def pesquisar_devedor_no_grid(self, nome_cliente: str, visivel: bool = False) -> bool:
+    def pesquisar_devedor_no_grid(self, nome_cliente: str, visivel: bool = False, cpf: str = "") -> bool:
         self.log(f"Pesquisando devedor no grid: '{nome_cliente}'...")
+        cpf = re.sub(r"\D", "", str(cpf or "")).zfill(11) if re.sub(r"\D", "", str(cpf or "")) else ""
+
+        def tem_cpf(txt):
+            dig = re.sub(r"\D", "", txt)
+            return bool(cpf) and (cpf in dig or (len(cpf.lstrip("0")) >= 8 and cpf.lstrip("0") in dig))
         try:
-            # Busca flexível: nome completo -> primeiro + último -> primeiro + segundo
+            # Busca flexível: nome completo -> primeiro + último -> primeiro + segundo.
+            # Com CPF: também pesquisa pelo CPF (homônimos: dois devedores com o mesmo nome).
             nome_limpo = " ".join(nome_cliente.split())
             partes_nome = nome_limpo.split()
             termos_busca = [nome_limpo]
+            if cpf:
+                termos_busca += [f"{cpf[:3]}.{cpf[3:6]}.{cpf[6:9]}-{cpf[9:]}", cpf]
             if len(partes_nome) > 2:
                 termos_busca.append(f"{partes_nome[0]} {partes_nome[-1]}")
                 termos_busca.append(f"{partes_nome[0]} {partes_nome[1]}")
+            homonimos = []
 
             norm_cliente = normalizar_texto(nome_limpo)
             partes = [p for p in norm_cliente.split() if len(p) > 2]
@@ -457,7 +467,7 @@ class AcordoService:
 
                 # TRAVA DE NOME: só aceita a linha cujo nome tenha o primeiro E o último
                 # nome (palavras inteiras) do cliente pesquisado. Nunca "qualquer linha".
-                idx_ok = None
+                candidatas = []          # (índice, texto) das linhas com o nome do cliente
                 for i, ln in enumerate(linhas):
                     try:
                         txt = ln.inner_text().strip()
@@ -468,17 +478,34 @@ class AcordoService:
                     celula_nome = normalizar_texto(re.split(r"[\t\n]", txt)[0])
                     palavras = set(celula_nome.split())
                     if partes and partes[0] in palavras and partes[-1] in palavras:
-                        idx_ok = i
-                        break
-                    self.log(f"Linha {i + 1} não confere com '{nome_cliente}': {txt[:50]}...", "WARNING")
+                        candidatas.append((i, txt))
+                    else:
+                        self.log(f"Linha {i + 1} não confere com '{nome_cliente}': {txt[:50]}...", "WARNING")
 
-                if idx_ok is None:
+                if not candidatas:
                     continue
+                com_cpf = [c for c in candidatas if tem_cpf(c[1])]
+                exatas = [c for c in candidatas
+                          if normalizar_texto(re.split(r"[\t\n]", c[1])[0]) == norm_cliente]
+                if com_cpf:
+                    idx_ok = com_cpf[0][0]
+                    self.log(f"Devedor conferido pelo CPF {cpf}.")
+                elif cpf and len(candidatas) > 1:
+                    # Mais de um devedor com o nome e o grid não mostra o CPF: não escolhe às cegas
+                    homonimos = [c[1].replace("\t", " | ")[:90] for c in candidatas]
+                    self.log(f"{len(candidatas)} devedor(es) com o nome '{nome_cliente}' na busca '{termo}' "
+                             f"e nenhum com o CPF {cpf} visível: {homonimos}", "WARNING")
+                    continue
+                else:
+                    idx_ok = (exatas or candidatas)[0][0]
 
                 self._linha_devedor = idx_ok
                 self.log(f"Devedor '{nome_cliente}' localizado no grid (linha {idx_ok + 1}) com a busca '{termo}'.", "SUCCESS")
                 return True
 
+            if homonimos:
+                self.log(f"HOMÔNIMOS: há mais de um '{nome_cliente}' no Cadastro de devedores e não consegui "
+                         f"confirmar qual é o do CPF {cpf}. O acordo NÃO será subido no devedor errado.", "ERROR")
             self.log(f"Devedor '{nome_cliente}' NÃO foi localizado no grid após {len(termos_busca)} tentativa(s).", "WARNING")
             return False
 
@@ -514,10 +541,23 @@ class AcordoService:
             else:
                 btn.evaluate("el => el.click()")
 
-            # TRATA POPUP DE HORÁRIO / ALERTAS DO SISTEMA
-            self.page.wait_for_timeout(1500)
+            # Espera o formulário OU um aviso do sistema (o aviso da GEAP pode demorar a vir)
+            modal = self.page.locator("#Cadastro, div[role='dialog']").filter(has_text="Acordos Judiciais").first
             sweet = self.page.locator(".sweet-alert.visible").first
-            if sweet.is_visible(timeout=3000):
+            for _ in range(60):
+                self.page.wait_for_timeout(500)
+                if modal.is_visible() or sweet.is_visible():
+                    break
+            if not modal.is_visible() and not sweet.is_visible():
+                try:
+                    from baixar_boletos.config import USER_DATA_DIR
+                    self.page.screenshot(path=str(Path(USER_DATA_DIR) / "ultimo_acordo_nao_abriu.png"))
+                except Exception:
+                    pass
+                self.log("O formulário do acordo não abriu em 30 s e nenhum aviso apareceu "
+                         "(print salvo em ultimo_acordo_nao_abriu.png).", "ERROR")
+                return False
+            if sweet.is_visible():
                 txt_alerta = sweet.inner_text()
                 self.log(f"Aviso/Popup detectado na tela: {txt_alerta[:80]}...", "WARNING")
                 # Nova regra: sem valores em aberto na GEAP o acordo não é subido;
@@ -546,7 +586,6 @@ class AcordoService:
                         if (lk) lk.style.display = 'none';
                     }""")
 
-            modal = self.page.locator("#Cadastro, div[role='dialog']").filter(has_text="Acordos Judiciais").first
             modal.wait_for(state="visible", timeout=15000)
             self.log("Formulário 'INCLUSÃO DE ACORDOS JUDICIAIS' aberto com sucesso!", "SUCCESS")
             return True
@@ -587,10 +626,15 @@ class AcordoService:
             return True
         if situacao == "INDEFINIDO":
             # Antes de gravar: reabre a tela e confere de novo, sem trocar de empresa à toa
-            if self._abrir_tela_boletos() and situacao_empresa(self.page) == "AC":
+            if self._abrir_tela_boletos():
+                situacao = situacao_empresa(self.page)
+                if situacao == "AC":
+                    return True
+            if situacao == "INDEFINIDO":
+                # O filtro de modelos às vezes não carrega. A trava passa a ser o formulário
+                # +NOVO: o Modelo 'SICOOB- AC' só aparece lá com a AC COBRANÇA ativa.
+                self.log("Filtro de modelos vazio; a empresa será conferida pelo Modelo 'SICOOB- AC' do formulário.", "WARNING")
                 return True
-            self.log("Não consegui confirmar a empresa AC COBRANÇA na tela de boletos. Nada será gravado.", "ERROR")
-            return False
         self.log("A empresa ativa NÃO é a AC COBRANÇA (alguém trocou a empresa neste login?). Selecionando de novo...", "WARNING")
         self._selecionar_empresa()
         if self._abrir_tela_boletos() and situacao_empresa(self.page) == "AC":
@@ -675,14 +719,19 @@ class AcordoService:
         campo.press("Control+A")
         campo.press("Backspace")
         campo.press_sequentially(busca, delay=80)
-        linhas = []
-        for _ in range(20):
+        # A lista vai filtrando enquanto o servidor responde: espera ela mostrar só linhas
+        # com o texto completo da busca e parar de mudar (antes pegava 'Abadia Jose...').
+        alvo = normalizar_texto(busca)
+        linhas, anterior = [], None
+        for _ in range(40):
             pg.wait_for_timeout(500)
             linhas = pg.evaluate("""(pfx) => [...document.querySelectorAll('tr')]
                 .filter(t => t.offsetParent !== null && (t.getAttribute('onclick')||'').includes("SetaAcao('" + pfx + "'"))
                 .map(t => t.innerText.replace(/\\s+/g, ' ').trim())""", prefixo)
-            if linhas:
+            filtrada = linhas and all(alvo in normalizar_texto(t) for t in linhas)
+            if filtrada and linhas == anterior:
                 break
+            anterior = linhas
         escolhidas = [i for i, t in enumerate(linhas) if casa_linha(t)]
         if len(escolhidas) != 1:
             self.log(f"Lista de '{campo_id}': {len(escolhidas)} linha(s) compatíveis em {linhas}. Não vou escolher às cegas.", "WARNING")
@@ -738,13 +787,13 @@ class AcordoService:
 
     def _criar_boletos_faltantes(self, nome_cliente: str, dados: Dict[str, Any], motivo: str) -> bool:
         """Boletos > +NOVO para as parcelas que faltam (aviso 'Ficha financeira não atualizada').
-        Vencimento = primeiro boleto que falta; Repetição = faltantes - 1. Só grava se:
+        Vencimento = primeiro boleto que falta; Repetição = total de boletos. Só grava se:
         empresa AC COBRANÇA ativa, lista lida com segurança, faltantes em meses seguidos,
         cliente achado pelo CPF, todos os campos conferidos e confirmar_gravacao aprovar."""
         try:
-            from baixar_boletos.boletos_faltantes import calcular_faltantes
+            from baixar_boletos.boletos_faltantes import calcular_faltantes, repeticao_para
         except ImportError:
-            from boletos_faltantes import calcular_faltantes
+            from boletos_faltantes import calcular_faltantes, repeticao_para
         pg = self.page
         self.log(f"'{nome_cliente}': {motivo}. Indo criar os boletos pela tela de Boletos.")
 
@@ -769,18 +818,20 @@ class AcordoService:
         # Só parcelas (mesmo valor da parcela) e não canceladas; a entrada fica de fora
         existentes = [b["venc"] for b in boletos
                       if "CANCEL" not in b["status"] and abs(centavos(b["valor"]) - centavos(valor)) <= 5]
-        # O Global Office recusa vencimento no passado (erro 5002): só parcelas de hoje em
-        # diante, e respeitando a regra do mês vigente (dia 25 em diante = mês seguinte).
-        from datetime import date as _date
+        # Regra do mês vigente (dia 25 em diante = mês seguinte): meses anteriores ficam de fora.
+        # O Global Office recusa vencimento no passado (erro 5002): a parcela deste mês cujo dia
+        # já passou é criada para daqui a DIAS_VENCIMENTO_ATRASADO dias; as demais nas datas normais.
+        from datetime import date as _date, timedelta as _td
+        hoje = _date.today()
         ano_ini, mes_ini = mes_inicial_boletos()
-        a_partir = max(_date.today(), _date(ano_ini, mes_ini, 1))
+        a_partir = _date(ano_ini, mes_ini, 1)
         calc = calcular_faltantes(primeiro, qtd, existentes, a_partir=a_partir)
         self.log(f"Parcelas: {calc['esperados']} esperadas, {calc['existentes']} já no sistema, "
-                 f"{len(calc['faltantes'])} a criar (vencimento a partir de {a_partir:%d/%m/%Y}).")
+                 f"{len(calc['faltantes'])} a criar (a partir de {a_partir:%m/%Y}).")
         if calc["vencidos"]:
-            self.log(f"{len(calc['vencidos'])} parcela(s) sem boleto já venceram ("
+            self.log(f"{len(calc['vencidos'])} parcela(s) de meses anteriores sem boleto ("
                      + ", ".join(d.strftime("%m/%Y") for d in calc["vencidos"])
-                     + "): o sistema não aceita vencimento no passado, ficam de fora.", "WARNING")
+                     + "): ficam de fora pela regra do mês vigente.", "WARNING")
         if not calc["faltantes"]:
             self.log(f"'{nome_cliente}' já tem todos os boletos das parcelas que ainda vão vencer. Nada a gerar.", "SUCCESS")
             return True
@@ -789,6 +840,133 @@ class AcordoService:
                      + ", ".join(d.strftime("%m/%Y") for d in calc["faltantes"])
                      + "). A Repetição recriaria parcelas existentes: fazer manualmente.", "WARNING")
             return False
+
+        # Lotes de gravação: (vencimento, repetição, descrição)
+        novo_venc = hoje + _td(days=DIAS_VENCIMENTO_ATRASADO)
+        atrasados = [d for d in calc["faltantes"] if d < hoje]
+        normais = [d for d in calc["faltantes"] if d >= hoje]
+        lotes = [(novo_venc.strftime("%d/%m/%Y"), 0,
+                  f"1 boleto: parcela de {d:%d/%m/%Y} (dia já passou) com vencimento em {novo_venc:%d/%m/%Y}")
+                 for d in atrasados]
+        if normais:
+            lotes.append((normais[0].strftime("%d/%m/%Y"), repeticao_para(len(normais)),
+                          f"{len(normais)} boleto(s), de {normais[0]:%d/%m/%Y} até {normais[-1]:%d/%m/%Y}"))
+        for n, (venc_lote, rep_lote, desc) in enumerate(lotes, 1):
+            if len(lotes) > 1:
+                desc += f"  [gravação {n} de {len(lotes)}]"
+            if n > 1:
+                pg.wait_for_timeout(3000)
+                if not self._abrir_tela_boletos():
+                    self.log("Tela de boletos não reabriu para a próxima gravação. Confira no sistema.", "ERROR")
+                    return False
+            if not self._gravar_boleto_novo(nome_cliente, dados, cpf, valor, venc_lote, rep_lote,
+                                            motivo, desc, calc):
+                return False
+
+        # Confere que os boletos apareceram
+        pg.wait_for_timeout(3000)
+        if not self._abrir_tela_boletos():
+            self.log("Gravado, mas não consegui reabrir a tela para conferir. Confira no sistema.", "WARNING")
+            return True
+        depois = self._listar_boletos_cliente(nome_cliente) or []
+        novos = calcular_faltantes(primeiro, qtd, [b["venc"] for b in depois
+                                                   if "CANCEL" not in b["status"] and abs(centavos(b["valor"]) - centavos(valor)) <= 5],
+                                   a_partir=a_partir)
+        if novos["faltantes"]:
+            self.log(f"Depois de gravar ainda faltam {len(novos['faltantes'])} boleto(s) de '{nome_cliente}'. Confira no sistema.", "WARNING")
+            return False
+        self.log(f"Boletos de '{nome_cliente}' criados e conferidos: {novos['existentes']}/{novos['esperados']} parcelas no sistema.", "SUCCESS")
+        return True
+
+    def reemitir_boleto_vencido_mes(self, nome_cliente: str, visivel: bool = False) -> Optional[list]:
+        try:
+            return self._reemitir_boleto_vencido_mes(nome_cliente, visivel)
+        finally:
+            try:
+                if self.page and not self.page.is_closed() and self.page.locator("#RDBTNEMABERTO_INPUT").count():
+                    self._marcar_situacao("RDBTNEMABERTO_INPUT")
+            except Exception:
+                pass
+
+    def _reemitir_boleto_vencido_mes(self, nome_cliente: str, visivel: bool = False) -> Optional[list]:
+        """Boleto do mês vigente que venceu sem ter sido enviado: cria um avulso igual (mesmo
+        valor) com vencimento daqui a DIAS_VENCIMENTO_ATRASADO dias. O vencido continua no
+        sistema (o download passa a pegar o novo). Devolve os novos vencimentos ([] = nada
+        a fazer) ou None se não deu para conferir/gravar."""
+        from datetime import date as _date, timedelta as _td
+        hoje = _date.today()
+        if mes_inicial_boletos(hoje) != (hoje.year, hoje.month):
+            return []   # a partir do dia 25 o mês atual já não é enviado
+        dados = self.parser.carregar_dados_cliente(nome_cliente)
+        # Pelo termo: se nenhum vencimento deste mês já passou, nem abre o Global Office
+        try:
+            from baixar_boletos.boletos_faltantes import cronograma_parcelas, _para_data
+            datas = cronograma_parcelas(dados.get("primeiro_vencimento"), int(dados.get("qtd_parcelas") or 0))
+            if dados.get("data_entrada"):
+                datas.append(_para_data(dados["data_entrada"]) or hoje.replace(day=1))
+            if datas and not any((d.year, d.month) == (hoje.year, hoje.month) and d < hoje for d in datas):
+                return []
+        except Exception:
+            pass   # termo ilegível: confere direto no sistema
+        self.garantir_sessao_ativa(visivel=visivel)
+        cpf = re.sub(r"\D", "", str(dados.get("cpf") or ""))
+        if not cpf:
+            self.log(f"'{nome_cliente}': sem CPF na planilha, não dá para reemitir o boleto vencido.", "WARNING")
+            return None
+        if not self._garantir_empresa_ac_na_tela_boletos():
+            return None
+        boletos = self._listar_boletos_cliente(nome_cliente)
+        if boletos is None:
+            return None
+
+        def data(v):
+            try:
+                return datetime.strptime(v.strip()[:10], "%d/%m/%Y").date()
+            except Exception:
+                return None
+        pago = ("PAGO", "QUITAD", "LIQUIDAD", "BAIXAD")
+        do_mes = [(data(b["venc"]), b) for b in boletos]
+        do_mes = [(d, b) for d, b in do_mes if d and (d.year, d.month) == (hoje.year, hoje.month)]
+        if any(any(s in b["status"] for s in pago) for _, b in do_mes):
+            return []   # o deste mês já foi pago
+        abertos = [(d, b) for d, b in do_mes if "CANCEL" not in b["status"]]
+        vencidos = [(d, b) for d, b in abertos if d < hoje]
+        if not vencidos:
+            return []
+        if any(d >= hoje for d, _ in abertos):
+            self.log(f"'{nome_cliente}': o boleto vencido deste mês já foi reemitido antes.")
+            return []
+
+        novo = hoje + _td(days=DIAS_VENCIMENTO_ATRASADO)
+        feitos = []
+        for n, (d, b) in enumerate(vencidos, 1):
+            valor = re.sub(r"[^\d.,]", "", b["valor"])
+            if n > 1:
+                self.page.wait_for_timeout(3000)
+                if not self._abrir_tela_boletos():
+                    return None
+            ok = self._gravar_boleto_novo(
+                nome_cliente, dados, cpf, valor, novo.strftime("%d/%m/%Y"), 0,
+                f"boleto de {d:%d/%m/%Y} venceu sem ter sido enviado",
+                f"1 boleto novo (R$ {valor}) com vencimento em {novo:%d/%m/%Y}, no lugar do vencido em {d:%d/%m/%Y}",
+                None)
+            if not ok:
+                return None
+            self.gravou_algo = True
+            feitos.append(novo.strftime("%d/%m/%Y"))
+            self.log(f"'{nome_cliente}': boleto vencido em {d:%d/%m/%Y} reemitido para {novo:%d/%m/%Y}.", "SUCCESS")
+        return feitos
+
+    def _gravar_boleto_novo(self, nome_cliente: str, dados: Dict[str, Any], cpf: str, valor: str,
+                            vencimento: str, repeticao: int, motivo: str, descricao: str,
+                            calc: Optional[dict]) -> bool:
+        """Boletos > +NOVO: preenche, confere, pede confirmação e grava UM lançamento
+        (Vencimento + Repetição). True só se o sistema não recusar."""
+        pg = self.page
+
+        def centavos(v):
+            d = re.sub(r"\D", "", str(v))
+            return int(d) if d else -1
 
         # +Novo
         try:
@@ -800,15 +978,20 @@ class AcordoService:
                   and self._selecionar_opcao("CBXMODELO", "SICOOB- AC")
                   and self._selecionar_opcao("CBXPADRAORECEITA", "Honorario_dentro"))
             if not ok:
+                self.log("Formulário +NOVO não aceitou Escritório/Modelo 'SICOOB- AC'/Receita: a empresa "
+                         "ativa pode não ser a AC COBRANÇA. Nada gravado.", "ERROR")
                 self._cancelar_inclusao()
                 return False
 
             # Cliente pelo CPF (a lista mostra o CPF sem zeros à esquerda)
             cpf_sem_zero = cpf.lstrip("0")
             partes = normalizar_texto(nome_cliente).split()
-            linha_cli = self._escolher_na_lista(
-                "EDTCLIENTE", " ".join(partes[:3]), "CLIEN",
-                lambda t: (re.sub(r"\D", "", t).lstrip("0") == cpf_sem_zero))
+            def casa_cpf(t):
+                return re.sub(r"\D", "", t).lstrip("0") == cpf_sem_zero
+            linha_cli = self._escolher_na_lista("EDTCLIENTE", " ".join(partes[:3]), "CLIEN", casa_cpf)
+            if not linha_cli and len(partes) > 3:
+                # A lista mostra no máximo 50 nomes: com o nome completo ela fica bem menor
+                linha_cli = self._escolher_na_lista("EDTCLIENTE", " ".join(partes), "CLIEN", casa_cpf)
             if not linha_cli or normalizar_texto(pg.locator("#EDTCLIENTE").input_value()) != normalizar_texto(nome_cliente):
                 self.log(f"Cliente com CPF {dados.get('cpf')} não confirmado na lista do sistema "
                          f"(linha={linha_cli!r}, campo={pg.locator('#EDTCLIENTE').input_value()!r}). Nada gravado.", "ERROR")
@@ -828,10 +1011,10 @@ class AcordoService:
                 return False
             venc = pg.locator("#EDTVENCIMENTO")
             venc.focus(); venc.press("Control+A"); venc.press("Backspace")
-            venc.press_sequentially(re.sub(r"\D", "", calc["vencimento"]), delay=60)
+            venc.press_sequentially(re.sub(r"\D", "", vencimento), delay=60)
             rep = pg.locator("#EDTREPETICAO")
             rep.focus(); rep.press("Control+A"); rep.press("Backspace")
-            rep.press_sequentially(str(calc["repeticao"]), delay=60)
+            rep.press_sequentially(str(repeticao), delay=60)
             pg.locator("#MMINSTRUCOES").focus()
             pg.wait_for_timeout(1000)
 
@@ -845,8 +1028,8 @@ class AcordoService:
             conferido = (normalizar_texto(lido["cliente"]) == normalizar_texto(nome_cliente)
                          and "SERVICO DE COBRANCA" in normalizar_texto(lido["item"])
                          and centavos(lido["valor"]) == centavos(valor)
-                         and lido["vencimento"] == calc["vencimento"]
-                         and lido["repeticao"].strip() == str(calc["repeticao"]))
+                         and lido["vencimento"] == vencimento
+                         and lido["repeticao"].strip() == str(repeticao))
             if pg.locator("#CKBEMAIL_CHECKBOX").is_checked() or pg.locator("#CKBREPLICAR_CHECKBOX").is_checked():
                 conferido = False
             # fecha listas de busca e calendário que ficam por cima do formulário
@@ -867,15 +1050,15 @@ class AcordoService:
                 self._cancelar_inclusao()
                 return False
 
-            fim = calc["faltantes"][-1].strftime("%d/%m/%Y")
-            resumo = (f"Motivo: {motivo}\n\n{nome_cliente} (CPF {dados.get('cpf')})\n"
+            cpf_m = re.sub(r"\D", "", str(dados.get("cpf") or ""))
+            cpf_m = f"***.{cpf_m[3:6]}.***-{cpf_m[-2:]}" if len(cpf_m) == 11 else "sem CPF"   # log/diálogo não guardam o CPF inteiro
+            resumo = (f"Motivo: {motivo}\n\n{nome_cliente} (CPF {cpf_m})\n"
                       f"Item: {lido['item']}\nValor: R$ {lido['valor']}\n"
                       f"Vencimento: {lido['vencimento']}  |  Repetição: {lido['repeticao']}\n"
-                      f"= {len(calc['faltantes'])} boleto(s), de {calc['vencimento']} até {fim}\n"
-                      f"(já existem {calc['existentes']} de {calc['esperados']} parcelas)"
-                      + (f"\n\nFICAM DE FORA {len(calc['vencidos'])} parcela(s) já vencida(s) sem boleto: "
-                         + ", ".join(d.strftime("%m/%Y") for d in calc["vencidos"])
-                         + "\n(o Global Office não aceita vencimento no passado)" if calc["vencidos"] else ""))
+                      f"= {descricao}"
+                      + (f"\n(já existem {calc['existentes']} de {calc['esperados']} parcelas)" if calc else "")
+                      + (f"\n\nFICAM DE FORA {len(calc['vencidos'])} parcela(s) de meses anteriores: "
+                         + ", ".join(d.strftime("%m/%Y") for d in calc["vencidos"]) if calc and calc["vencidos"] else ""))
             self.log("Formulário conferido:\n" + resumo)
             if (self._cancelado or not self.confirmar_gravacao or not self.confirmar_gravacao(resumo)
                     or self._cancelado):
@@ -903,20 +1086,6 @@ class AcordoService:
             self.log(f"Erro no formulário de novo boleto: {e}", "ERROR")
             self._cancelar_inclusao()
             return False
-
-        # Confere que os boletos apareceram
-        pg.wait_for_timeout(3000)
-        if not self._abrir_tela_boletos():
-            self.log("Gravado, mas não consegui reabrir a tela para conferir. Confira no sistema.", "WARNING")
-            return True
-        depois = self._listar_boletos_cliente(nome_cliente) or []
-        novos = calcular_faltantes(primeiro, qtd, [b["venc"] for b in depois
-                                                   if "CANCEL" not in b["status"] and abs(centavos(b["valor"]) - centavos(valor)) <= 5],
-                                   a_partir=a_partir)
-        if novos["faltantes"]:
-            self.log(f"Depois de gravar ainda faltam {len(novos['faltantes'])} boleto(s) de '{nome_cliente}'. Confira no sistema.", "WARNING")
-            return False
-        self.log(f"Boletos de '{nome_cliente}' criados e conferidos: {novos['existentes']}/{novos['esperados']} parcelas no sistema.", "SUCCESS")
         return True
 
     def _preencher_valor(self, campo, valor_br: str) -> bool:
@@ -993,6 +1162,46 @@ class AcordoService:
         except Exception as e:
             self.log(f"Erro ao selecionar processo pela lupa: {e}", "ERROR")
             return False
+
+    def _conferir_valores(self, dados: Dict[str, Any]) -> bool:
+        """Antes de subir o acordo: o termo manda (o parser já trocou os valores da planilha
+        pelos do termo). Pede confirmação quando o termo não pôde ser lido ou quando a conta
+        do próprio termo não fecha (entrada + parcelas ≠ valor do acordo)."""
+        def centavos(v):
+            d = re.sub(r"\D", "", str(v or ""))
+            return int(d) if d else 0
+        rotulos = {"valor_entrada": "Entrada", "data_entrada": "Data da entrada", "qtd_parcelas": "Parcelas",
+                   "valor_parcela": "Valor da parcela", "primeiro_vencimento": "1º vencimento"}
+        linhas = [f"{r}: {dados.get(k) or '-'}  ({dados.get('origem_' + k, 'planilha')})" for k, r in rotulos.items()]
+        linhas.append(f"Valor do acordo: R$ {dados.get('valor_limite') or '-'}  ({dados.get('origem_valor_limite', 'planilha')})")
+        self.log("Conferência dos valores (vale o termo):\n  " + "\n  ".join(linhas))
+        for chave, v_termo, v_plan in dados.get("divergencias", []):
+            self.log(f"DIVERGÊNCIA {rotulos.get(chave, chave)}: termo {v_termo} × planilha {v_plan}. Usando o do termo.", "WARNING")
+
+        alertas = []
+        if not dados.get("termo_lido"):
+            alertas.append("O termo não pôde ser lido (escaneado ou não encontrado): os valores vêm só da planilha.")
+        else:
+            soma = (centavos(dados.get("valor_entrada")) if dados.get("tem_entrada") else 0) \
+                + int(dados.get("qtd_parcelas") or 0) * centavos(dados.get("valor_parcela"))
+            total = centavos(dados.get("valor_limite"))
+            if total and abs(soma - total) > 100:   # tolerância de R$ 1,00 (arredondamentos)
+                def brl(c):
+                    return f"{c / 100:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+                alertas.append(f"A conta não fecha: entrada + parcelas = R$ {brl(soma)} e o valor do acordo é R$ {brl(total)}.")
+        if not alertas:
+            self.log("Valores conferidos com o termo.", "SUCCESS")
+            return True
+
+        resumo = ("CONFERIR ANTES DE SUBIR O ACORDO\n\n" + "\n".join(alertas) + "\n\n"
+                  + dados.get("nome_cliente", "") + "\n" + "\n".join(linhas) + "\n\nSubir o acordo com estes valores?")
+        for a in alertas:
+            self.log(a, "WARNING")
+        if self.confirmar_gravacao and self.confirmar_gravacao(resumo) and not self._cancelado:
+            self.log("Valores confirmados pelo usuário.")
+            return True
+        self.log(f"Acordo de '{dados.get('nome_cliente')}' NÃO subido: valores não confirmados.", "ERROR")
+        return False
 
     def preencher_e_gravar_acordo(self, dados: Dict[str, Any]) -> bool:
         modal = self.page.locator("#Cadastro, div[role='dialog']").filter(has_text="Acordos Judiciais").first
@@ -1307,6 +1516,9 @@ class AcordoService:
             self.log(f"Ignorado: {nome_cliente} não é parcelado.", "WARNING")
             return False
 
+        if not self._conferir_valores(dados):
+            return False
+
         # ETAPA 1: Acordo
         # O popup "Horário registrado com sucesso" faz o sistema recarregar a página e
         # derruba o formulário aberto. Se isso acontecer, refaz o caminho (o horário já
@@ -1333,7 +1545,7 @@ class AcordoService:
             if not self.acessar_cadastro_devedores(visivel=visivel):
                 continue
             self._parar_se_cancelado()
-            if not self.pesquisar_devedor_no_grid(nome_cliente, visivel=visivel):
+            if not self.pesquisar_devedor_no_grid(nome_cliente, visivel=visivel, cpf=dados.get("cpf", "")):
                 continue
             self._parar_se_cancelado()
 

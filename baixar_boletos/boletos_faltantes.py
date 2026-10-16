@@ -2,7 +2,8 @@
 
 Regra (aviso "Ficha financeira não atualizada / Não há valores em aberto"):
 o acordo não pode ser subido, então os boletos que faltam são criados em
-Boletos > +NOVO, com Repetição = faltantes - 1 (o sistema cria 1 + Repetição boletos)
+Boletos > +NOVO. O campo Repetição é o TOTAL de boletos (Repetição 19 cria 19, não 20;
+0 cria 1): ver repeticao_para()
 e Vencimento = o primeiro vencimento que ainda não existe.
 
 Só parcelas entram na conta (a entrada é ignorada). Boletos em aberto e quitados contam
@@ -30,6 +31,12 @@ def _para_data(v) -> Optional[date]:
         return None
 
 
+def repeticao_para(qtd_boletos: int) -> int:
+    """Valor do campo Repetição para criar qtd_boletos boletos. No Global Office a Repetição
+    é o total de boletos (14/10/2026: Repetição 19 criou 19). Um boleto só: 0 (já testado)."""
+    return qtd_boletos if qtd_boletos > 1 else 0
+
+
 def cronograma_parcelas(primeiro_vencimento, qtd_parcelas: int) -> List[date]:
     """Vencimentos esperados das parcelas: o primeiro e os meses seguintes, no mesmo dia."""
     inicio = _para_data(primeiro_vencimento)
@@ -45,7 +52,7 @@ def calcular_faltantes(primeiro_vencimento, qtd_parcelas: int, vencimentos_exist
     Devolve:
       faltantes:  vencimentos esperados que não existem
       vencimento: primeiro faltante (vai no campo VENCIMENTO)
-      repeticao:  len(faltantes) - 1 (vai no campo REPETIÇÃO)
+      repeticao:  repeticao_para(len(faltantes)) (vai no campo REPETIÇÃO)
       seguro:     True só se os faltantes forem meses CONSECUTIVOS. A Repetição gera meses
                   seguidos; com buracos no meio ela recriaria parcelas que já existem.
       vencidos:   parcelas que faltam mas já venceram (antes de `a_partir`). O Global Office
@@ -64,6 +71,6 @@ def calcular_faltantes(primeiro_vencimento, qtd_parcelas: int, vencimentos_exist
         "faltantes": faltantes,
         "vencidos": vencidos,
         "vencimento": faltantes[0].strftime("%d/%m/%Y") if faltantes else None,
-        "repeticao": max(len(faltantes) - 1, 0),
+        "repeticao": repeticao_para(len(faltantes)),
         "seguro": seguro,
     }

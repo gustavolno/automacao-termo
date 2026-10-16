@@ -27,10 +27,43 @@ BOLETO_RE = re.compile(r"BOLETO\s*-\s*(?:ENTRADA\s*-\s*)?(\d{4})-(\d{2})", re.I)
 NOME_LISTA = "LISTA DE ENVIO DE BOLETOS"
 
 
+MESES_EXT = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho",
+             "agosto", "setembro", "outubro", "novembro", "dezembro"]
+DOMINIO_ESCRITORIO = "aldriguescandido.adv.br"
+
+
+def rotulo_mes(mes: tuple) -> str:
+    """(2026, 10) -> 'outubro/2026'."""
+    return f"{MESES_EXT[mes[1] - 1]}/{mes[0]}"
+
+
+def e_do_escritorio(email: str) -> bool:
+    """E-mail do próprio escritório, inclusive com erro de leitura do OCR/termo
+    (aldriquescandido.adyv.br, aldnguescand1do...)."""
+    import difflib
+    dominio = normalizar_texto(email.split("@")[-1]).lower()
+    # parecido com o domínio do escritório E começando como ele ("aldrigues..."), para não pegar domínios como candido.adv.br
+    return dominio.startswith("ald") and difflib.SequenceMatcher(None, dominio, DOMINIO_ESCRITORIO).ratio() >= 0.7
+
+
+def corrigir_email(email: str) -> tuple:
+    """(e-mail corrigido, aviso). Só conserta erros de digitação óbvios no fim do endereço."""
+    e = email.strip().strip(".").lower()
+    for errado, certo in ((".comm", ".com"), (".cam", ".com"), (".con", ".com"), (".br.br", ".br")):
+        if e.endswith(errado):
+            return e[:-len(errado)] + certo, f"corrigido de {email}"
+    return e, ""
+
 def limpar_nome(nome: str) -> str:
     """'ELIZANE ... MÁXIMO- (SILVA PIMENTEL)' -> 'ELIZANE ... MÁXIMO'."""
     nome = re.sub(r"\(.*?\)", "", str(nome or ""))
     return " ".join(nome.split()).strip(" -").upper()
+
+
+def mes_do_boleto(arquivo) -> Optional[tuple]:
+    """(ano, mês) pelo nome 'BOLETO - [ENTRADA - ]AAAA-MM (...)'."""
+    m = BOLETO_RE.search(Path(arquivo).name)
+    return (int(m.group(1)), int(m.group(2))) if m else None
 
 
 def boletos_a_enviar(pasta: Path, hoje: Optional[date] = None) -> list:
@@ -249,10 +282,17 @@ def localizar_pasta_boletos(nome: str, pasta_lista: str = "") -> Optional[Path]:
 
 
 def carregar_historico() -> dict:
-    try:
-        return json.loads(Path(EMAILS_ENVIADOS_FILE).read_text(encoding="utf-8"))
-    except Exception:
+    """Histórico de envios. Arquivo ausente = nunca enviou nada. Arquivo que EXISTE mas não pôde ser lido
+    (travado pelo OneDrive, truncado) levanta erro: devolver {} faria a Central achar que ninguém recebeu
+    nada e reenviar para todos, e o próximo registro apagaria o histórico antigo."""
+    arq = Path(EMAILS_ENVIADOS_FILE)
+    if not arq.exists():
         return {}
+    try:
+        return json.loads(arq.read_text(encoding="utf-8"))
+    except Exception as e:
+        raise RuntimeError(f"O histórico de e-mails enviados ({arq.name}) existe mas não pôde ser lido ({e}). "
+                           "Nada será enviado até isso ser resolvido, para não repetir e-mails.")
 
 
 def ja_enviado(nome: str, arquivos: list) -> Optional[dict]:
@@ -264,13 +304,28 @@ def ja_enviado(nome: str, arquivos: list) -> Optional[dict]:
     return None
 
 
+def ultimo_envio_do_mes(nome: str, mes: tuple) -> Optional[dict]:
+    """O envio mais recente deste cliente que levou o boleto do mês (ano, mês), ou None."""
+    for envio in reversed(carregar_historico().get(normalizar_texto(nome), [])):
+        if any(mes_do_boleto(a) == mes for a in envio.get("arquivos", [])):
+            return envio
+    return None
+
+
+def mes_ja_enviado(nome: str, mes: tuple) -> bool:
+    """Algum e-mail já enviado a este cliente levou o boleto do mês (ano, mês)?"""
+    return ultimo_envio_do_mes(nome, mes) is not None
+
 def registrar_envio(nome: str, emails: list, arquivos: list):
     hist = carregar_historico()
     hist.setdefault(normalizar_texto(nome), []).append({
         "data": time.strftime("%Y-%m-%d %H:%M"), "nome": nome, "para": emails,
         "arquivos": [Path(a).name for a in arquivos],
     })
-    Path(EMAILS_ENVIADOS_FILE).write_text(json.dumps(hist, ensure_ascii=False, indent=1), encoding="utf-8")
+    arq = Path(EMAILS_ENVIADOS_FILE)
+    tmp = arq.with_suffix(".tmp")
+    tmp.write_text(json.dumps(hist, ensure_ascii=False, indent=1), encoding="utf-8")
+    os.replace(tmp, arq)   # troca atômica: uma queda no meio não deixa o histórico pela metade
 
 
 class EmailService:
@@ -411,7 +466,56 @@ class EmailService:
             if "_action=compose" not in pg.url:
                 return True
             pg.wait_for_timeout(500)
-        raise RuntimeError("Sem confirmação de envio após 60s.")
+        raise RuntimeError("Sem confirmação de envio após 60s: o e-mail PODE ter saído. Confira a pasta Enviados do webmail antes de tentar de novo.")
+
+    def enviar_mes(self, nome: str, emails: list, arquivos: list, mes: tuple,
+                   confirmar: Optional[Callable[[str], str]] = None, visivel: bool = False) -> dict:
+        """Envia SÓ o(s) boleto(s) do mês `mes` ((ano, mês)), com o texto do e-mail ajustado para
+        esse mês. Se o texto padrão do webmail mudou e algum trecho não for achado, não envia."""
+        n, rot = len(arquivos), rotulo_mes(mes)
+        if not arquivos:
+            return {"status": "sem_boletos", "msg": "nenhum boleto do mês"}
+
+        def ent(t):   # acentos como entidade HTML, como o editor do webmail devolve
+            return t.encode("ascii", "xmlcharrefreplace").decode()
+        antigo = "<span>Informamos que os </span><strong><span>boletos referentes ao seu acordo"
+        if n == 1:
+            trocas = [
+                (antigo, f"<span>Informamos que o </span><strong><span>boleto do m&ecirc;s de {ent(rot)} referente ao seu acordo"),
+                ("<span>&nbsp;est&atilde;o dispon&iacute;veis e seguem anexados a este e-mail.</span>",
+                 "<span>&nbsp;est&aacute; dispon&iacute;vel e segue anexado a este e-mail.</span>"),
+                ("que observe atentamente as </span><strong><span>datas de vencimento</span></strong><span> de cada boleto e realize os pagamentos dentro dos respectivos prazos,",
+                 "que observe atentamente a </span><strong><span>data de vencimento</span></strong><span> do boleto e realize o pagamento dentro do prazo,"),
+                ("Ap&oacute;s a realiza&ccedil;&atilde;o de cada pagamento,", "Ap&oacute;s a realiza&ccedil;&atilde;o do pagamento,"),
+            ]
+        else:   # entrada + parcela no mesmo mês
+            trocas = [(antigo, f"<span>Informamos que os </span><strong><span>boletos do m&ecirc;s de {ent(rot)} (entrada e parcela) referentes ao seu acordo")]
+
+        self.abrir_sessao(visivel=visivel)
+        self.log(f"{nome}: {n} boleto(s) de {rot} -> {', '.join(emails)}")
+        self.preparar_email(nome, emails, arquivos)
+        html = self.page.evaluate("tinymce.activeEditor.getContent()")
+        for a, b in trocas:
+            if html.count(a) != 1:
+                self.descartar()
+                raise RuntimeError(f"o texto padrão do e-mail mudou (trecho não encontrado: {a[:50]}...); nada enviado")
+            html = html.replace(a, b)
+        self.page.evaluate("h => tinymce.activeEditor.setContent(h)", html)
+        if rot not in self.page.evaluate("tinymce.activeEditor.getContent({format:'text'})"):
+            self.descartar()
+            raise RuntimeError("o texto do e-mail não ficou ajustado para o mês; nada enviado")
+        if self.cancelado():
+            self.descartar()
+            return {"status": "parado"}
+        if confirmar:
+            resp = confirmar(f"{nome}\nPara: {', '.join(emails)}\nBoleto(s) de {rot}: {n}\n\nEnviar este e-mail?")
+            if resp != "enviar":
+                self.descartar()
+                return {"status": "parado" if resp == "parar" else "pulado"}
+        self.enviar()
+        registrar_envio(nome, emails, arquivos)
+        self.log(f"{nome}: e-mail ENVIADO com {n} boleto(s) de {rot}.", "SUCCESS")
+        return {"status": "enviado", "arquivos": n}
 
     def enviar_boletos_cliente(self, nome: str, emails: list, pasta: Path,
                                confirmar: Optional[Callable[[str], str]] = None, visivel: bool = False) -> dict:

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Ficha do cliente</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&amp;family=Cormorant+Garamond:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F0E6}
+a{color:#7A5A1E}a:hover{color:#4E3A12}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F5F0E6; color: #1F1712; font-family: 'Manrope', sans-serif">
+
+  <nav aria-label="Menu principal" style="flex: 1 1 248px; max-width: 100%; background: #21160F; color: #EADFC8; padding: 28px 20px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <img src="/_blob/3227defaa76a5e0bb9ae29eda295656f" alt="Aldrigues Cândido Advocacia — A.C. Cobrança" style="width: 52px; height: 52px; border-radius: 8px; object-fit: cover">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-family: 'Cinzel', serif; font-size: 15px; letter-spacing: 0.08em; color: #D9B76A">A.C. COBRANÇA</span>
+        <span style="font-size: 11px; letter-spacing: 0.14em; color: #A8957A">CENTRAL</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; color: #CDBFA6; text-decoration: none; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg>
+        Minha carteira
+      </a>
+      <a href="Cliente.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; background: #3A2A1E; color: #F3E7CC; text-decoration: none; font-weight: 600; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D9B76A" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>
+        Clientes
+      </a>
+      <a href="Robos.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; color: #CDBFA6; text-decoration: none; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="3"></rect><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"></path></svg>
+        Robôs
+      </a>
+      <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; color: #CDBFA6; text-decoration: none; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg>
+        Relatórios
+      </a>
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 40px clamp(20px, 4vw, 56px); box-sizing: border-box; display: flex; flex-direction: column; gap: 28px">
+
+    <a href="Main.dc.html" style="font-size: 14px; font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; min-height: 44px">← Voltar à carteira</a>
+
+    <header style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 16px; border-bottom: 1px solid #DCCFB8; padding-bottom: 24px">
+      <div style="display: flex; flex-direction: column; gap: 8px">
+        <span style="display: inline-block; align-self: flex-start; padding: 4px 12px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #F6E1DB; color: #7A2417">Inadimplente · 62 dias</span>
+        <h1 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 44px; line-height: 1.05">Helena Marques Duarte</h1>
+        <p style="margin: 0; color: #5C4C3D; font-size: 14px">CPF ***.412.***-07 · Acordo GEAP · 24 parcelas de R$ 937,10 · negociadora [Nome]</p>
+      </div>
+      <div style="display: flex; flex-wrap: wrap; gap: 10px">
+        <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFCF6; font: inherit; font-size: 14px; font-weight: 600; color: #2F5130; cursor: pointer">WhatsApp</button>
+        <button type="button" style="height: 44px; padding: 0 16px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFCF6; font: inherit; font-size: 14px; font-weight: 600; color: #7A5A1E; cursor: pointer">Reenviar boleto</button>
+        <a href="Robos.dc.html" style="height: 44px; display: inline-flex; align-items: center; padding: 0 16px; border-radius: 8px; background: #21160F; color: #F3E7CC; text-decoration: none; font-size: 14px; font-weight: 600">Reemitir boleto vencido</a>
+      </div>
+    </header>
+
+    <section aria-labelledby="parcelas" style="background: #FFFCF6; border: 1px solid #E2D6C1; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+      <div style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: baseline">
+        <h2 id="parcelas" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600">Parcelas</h2>
+        <div style="display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: #5C4C3D">
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #2F5130"></span>Paga</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; background: #8E2A1C"></span>Vencida</span>
+          <span style="display: flex; align-items: center; gap: 6px"><span style="width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid #8A6A22; box-sizing: border-box"></span>A vencer</span>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(92px, 1fr)); gap: 8px">
+        <sc-for list="{{parcelas}}" as="p" hint-placeholder-count="12">
+          <div style="{{p.estilo}}">
+            <span style="font-size: 12px; font-weight: 700">{{p.mes}}</span>
+            <span style="font-size: 11px">{{p.rotulo}}</span>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+      <section aria-labelledby="contatos" style="flex: 3 1 420px; min-width: 0; background: #FFFCF6; border: 1px solid #E2D6C1; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 16px">
+        <h2 id="contatos" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600">Histórico de contatos</h2>
+        <div style="display: flex; flex-direction: column; gap: 8px">
+          <label for="nota" style="font-size: 13px; font-weight: 600; color: #3B2E22">Novo registro</label>
+          <textarea id="nota" rows="3" placeholder="Ex.: liguei, prometeu pagar dia 20" style="padding: 12px 14px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 14px; resize: vertical"></textarea>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center">
+            <label for="lembrete" style="font-size: 13px; color: #3B2E22">Lembrar de cobrar em</label>
+            <input id="lembrete" type="date" style="height: 44px; padding: 0 10px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 14px">
+            <button type="button" onClick="{{registrar}}" style="height: 44px; padding: 0 18px; border: none; border-radius: 8px; background: #21160F; color: #F3E7CC; font: inherit; font-size: 14px; font-weight: 600; cursor: pointer">Registrar</button>
+          </div>
+        </div>
+        <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column">
+          <sc-for list="{{contatos}}" as="c" hint-placeholder-count="3">
+            <li style="display: flex; gap: 16px; padding: 14px 0; border-top: 1px solid #EFE6D6; font-size: 14px">
+              <span style="flex: 0 0 64px; color: #7A5A1E; font-weight: 700; font-variant-numeric: tabular-nums">{{c.data}}</span>
+              <span style="display: flex; flex-direction: column; gap: 2px"><span>{{c.texto}}</span><span style="font-size: 12px; color: #6E5E4C">{{c.quem}}</span></span>
+            </li>
+          </sc-for>
+        </ol>
+      </section>
+
+      <section aria-labelledby="docs" style="flex: 2 1 280px; min-width: 0; background: #FFFCF6; border: 1px solid #E2D6C1; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 12px">
+        <h2 id="docs" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 28px; font-weight: 600">Documentos</h2>
+        <a href="#" style="display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid #E8DDCB; border-radius: 8px; text-decoration: none; color: #1F1712; font-size: 14px">Termo de acordo <span style="color: #6E5E4C; font-size: 12px">PDF</span></a>
+        <a href="#" style="display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid #E8DDCB; border-radius: 8px; text-decoration: none; color: #1F1712; font-size: 14px">Boletos do acordo <span style="color: #6E5E4C; font-size: 12px">21 arquivos</span></a>
+        <a href="#" style="display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid #E8DDCB; border-radius: 8px; text-decoration: none; color: #1F1712; font-size: 14px">Comprovantes <span style="color: #6E5E4C; font-size: 12px">3 arquivos</span></a>
+        <a href="#" style="display: flex; justify-content: space-between; align-items: center; min-height: 44px; padding: 0 14px; border: 1px solid #E8DDCB; border-radius: 8px; text-decoration: none; color: #1F1712; font-size: 14px">E-mails enviados <span style="color: #6E5E4C; font-size: 12px">2</span></a>
+      </section>
+    </div>
+
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { extras: [] };
+  }
+  renderVals() {
+    const meses = ['JUL/26', 'AGO/26', 'SET/26', 'OUT/26', 'NOV/26', 'DEZ/26', 'JAN/27', 'FEV/27', 'MAR/27', 'ABR/27', 'MAI/27', 'JUN/27'];
+    const base = 'display:flex;flex-direction:column;gap:2px;padding:10px;border-radius:8px;min-height:52px;box-sizing:border-box';
+    const parcelas = meses.map((mes, i) => {
+      if (i < 2) return { mes, rotulo: 'paga', estilo: base + ';background:#2F5130;color:#F3F7EE' };
+      if (i < 4) return { mes, rotulo: 'vencida', estilo: base + ';background:#8E2A1C;color:#FBEDE9' };
+      return { mes, rotulo: 'a vencer', estilo: base + ';border:1.5px solid #8A6A22;color:#5E4512' };
+    });
+    const contatos = [
+      ...this.state.extras,
+      { data: '02/10', texto: 'Prometeu pagar setembro e outubro no dia 10.', quem: 'WhatsApp · [Negociadora]' },
+      { data: '18/09', texto: 'Não atendeu. Boleto de setembro reenviado por e-mail.', quem: 'Telefone · [Negociadora]' },
+      { data: '05/08', texto: 'Comprovante de agosto recebido.', quem: 'E-mail · [Negociadora]' },
+    ];
+    const registrar = () => this.setState({
+      extras: [{ data: '14/10', texto: 'Novo contato registrado.', quem: 'agora · [Negociadora]' }, ...this.state.extras],
+    });
+    return { parcelas, contatos, registrar };
+  }
+}
+</script>
+</body>
+</html>

@@ -120,6 +120,8 @@ def situacao_empresa(page, espera_ms: int = 10000) -> str:
 # Boletos de meses que já passaram não são baixados nem enviados. A partir deste dia do
 # mês, o mês atual também é considerado encerrado e começa-se pelo mês seguinte.
 DIA_VIRADA_MES = int(os.getenv("DIA_VIRADA_MES", "25"))
+# Boleto avulso cuja data de vencimento deste mês já passou: criado para daqui a N dias.
+DIAS_VENCIMENTO_ATRASADO = int(os.getenv("DIAS_VENCIMENTO_ATRASADO", "2"))
 
 
 def mes_inicial_boletos(hoje=None):

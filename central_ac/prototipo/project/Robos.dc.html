@@ -1,0 +1,156 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<title>Central de robôs</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600&amp;family=Cormorant+Garamond:wght@500;600;700&amp;family=Manrope:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#F5F0E6}
+a{color:#7A5A1E}a:hover{color:#4E3A12}
+</style>
+</helmet>
+<div style="min-height: 100vh; display: flex; flex-wrap: wrap; background: #F5F0E6; color: #1F1712; font-family: 'Manrope', sans-serif">
+
+  <nav aria-label="Menu principal" style="flex: 1 1 248px; max-width: 100%; background: #21160F; color: #EADFC8; padding: 28px 20px; display: flex; flex-direction: column; gap: 28px; box-sizing: border-box">
+    <div style="display: flex; align-items: center; gap: 12px">
+      <img src="/_blob/3227defaa76a5e0bb9ae29eda295656f" alt="Aldrigues Cândido Advocacia — A.C. Cobrança" style="width: 52px; height: 52px; border-radius: 8px; object-fit: cover">
+      <div style="display: flex; flex-direction: column; gap: 2px">
+        <span style="font-family: 'Cinzel', serif; font-size: 15px; letter-spacing: 0.08em; color: #D9B76A">A.C. COBRANÇA</span>
+        <span style="font-size: 11px; letter-spacing: 0.14em; color: #A8957A">CENTRAL</span>
+      </div>
+    </div>
+    <div style="display: flex; flex-direction: column; gap: 4px">
+      <a href="Main.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; color: #CDBFA6; text-decoration: none; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M3 12l9-8 9 8"></path><path d="M5 10v10h14V10"></path></svg>
+        Minha carteira
+      </a>
+      <a href="Cliente.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; color: #CDBFA6; text-decoration: none; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"></path></svg>
+        Clientes
+      </a>
+      <a href="Robos.dc.html" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; background: #3A2A1E; color: #F3E7CC; text-decoration: none; font-weight: 600; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D9B76A" stroke-width="1.8" aria-hidden="true"><rect x="4" y="7" width="16" height="12" rx="3"></rect><path d="M12 3v4M9 12h.01M15 12h.01M9 16h6"></path></svg>
+        Robôs
+      </a>
+      <a href="#" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 8px; color: #CDBFA6; text-decoration: none; font-size: 14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"></path></svg>
+        Relatórios
+      </a>
+    </div>
+    <div style="margin-top: auto; padding: 14px; border: 1px solid #3F2F22; border-radius: 10px; font-size: 12px; color: #A8957A; line-height: 1.5">
+      Global Office: <strong style="color: #D9B76A">sessão ativa</strong><br>
+      Um robô por vez no mesmo login
+    </div>
+  </nav>
+
+  <main style="flex: 999 1 560px; min-width: 0; padding: 40px clamp(20px, 4vw, 56px); box-sizing: border-box; display: flex; flex-direction: column; gap: 32px">
+
+    <header style="display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid #DCCFB8; padding-bottom: 24px">
+      <span style="font-size: 12px; letter-spacing: 0.16em; color: #7A5A1E; font-weight: 600">AUTOMAÇÕES</span>
+      <h1 style="margin: 0; font-family: 'Cormorant Garamond', serif; font-weight: 600; font-size: 44px; line-height: 1.05">Central de robôs</h1>
+      <p style="margin: 0; color: #5C4C3D; font-size: 15px">Todos os programas num só lugar. Escolha a tarefa, informe os clientes e acompanhe ao vivo.</p>
+    </header>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+
+      <section aria-label="Tarefas" style="flex: 1 1 320px; display: flex; flex-direction: column; gap: 10px">
+        <sc-for list="{{robos}}" as="r" hint-placeholder-count="6">
+          <button type="button" onClick="{{r.pick}}" aria-pressed="{{r.pressed}}" style="{{r.estilo}}">
+            <span style="display: flex; flex-direction: column; gap: 4px; text-align: left">
+              <span style="font-weight: 700; font-size: 15px">{{r.nome}}</span>
+              <span style="font-size: 13px; opacity: 0.8; font-weight: 500">{{r.desc}}</span>
+            </span>
+          </button>
+        </sc-for>
+      </section>
+
+      <div style="flex: 2 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 24px">
+
+        <section aria-labelledby="form-titulo" style="background: #FFFCF6; border: 1px solid #E2D6C1; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 18px">
+          <h2 id="form-titulo" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 30px; font-weight: 600">{{atual.nome}}</h2>
+          <p style="margin: 0; color: #5C4C3D; font-size: 14px; line-height: 1.6">{{atual.detalhe}}</p>
+          <div style="display: flex; flex-direction: column; gap: 8px">
+            <label for="clientes" style="font-size: 13px; font-weight: 600; color: #3B2E22">Clientes (um por linha, na ordem)</label>
+            <textarea id="clientes" rows="5" placeholder="Cole aqui os nomes dos clientes" style="padding: 12px 14px; border: 1px solid #CDBFA6; border-radius: 8px; background: #FFFFFF; font: inherit; font-size: 14px; color: #1F1712; resize: vertical"></textarea>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 18px; font-size: 14px; color: #3B2E22">
+            <label style="display: flex; align-items: center; gap: 8px; min-height: 44px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #7A5A1E"> Enviar e-mail ao final</label>
+            <label style="display: flex; align-items: center; gap: 8px; min-height: 44px"><input type="checkbox" checked style="width: 18px; height: 18px; accent-color: #7A5A1E"> Conferir cada gravação antes</label>
+            <label style="display: flex; align-items: center; gap: 8px; min-height: 44px"><input type="checkbox" style="width: 18px; height: 18px; accent-color: #7A5A1E"> Só o boleto do mês vigente</label>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 10px">
+            <button type="button" style="height: 48px; padding: 0 26px; border: none; border-radius: 8px; background: #21160F; color: #F3E7CC; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer">Executar</button>
+            <button type="button" style="height: 48px; padding: 0 22px; border: 1px solid #8E2A1C; border-radius: 8px; background: #FFFCF6; color: #8E2A1C; font: inherit; font-size: 15px; font-weight: 700; cursor: pointer">Parar</button>
+          </div>
+        </section>
+
+        <section aria-labelledby="andamento" style="background: #21160F; color: #EADFC8; border-radius: 14px; padding: 24px; display: flex; flex-direction: column; gap: 14px">
+          <div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 8px">
+            <h2 id="andamento" style="margin: 0; font-family: 'Cormorant Garamond', serif; font-size: 26px; font-weight: 600; color: #F3E7CC">Andamento do lote</h2>
+            <span style="font-size: 12px; color: #A8957A">exemplo · atualiza ao vivo para toda a equipe</span>
+          </div>
+          <ol style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; font-size: 14px">
+            <sc-for list="{{lote}}" as="l" hint-placeholder-count="5">
+              <li style="display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; padding: 12px 14px; border: 1px solid #3F2F22; border-radius: 8px">
+                <span><span style="color: #A8957A; font-variant-numeric: tabular-nums">{{l.n}}.</span> {{l.nome}}</span>
+                <span style="{{l.estilo}}">{{l.status}}</span>
+              </li>
+            </sc-for>
+          </ol>
+        </section>
+
+      </div>
+    </div>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  constructor(props) {
+    super(props);
+    this.state = { robo: 'lote' };
+  }
+  renderVals() {
+    const lista = [
+      { id: 'lote', nome: 'Processar clientes', desc: 'Sobe o acordo, baixa os boletos e envia por e-mail', detalhe: 'Para cada cliente: confere a pasta, sobe o acordo no Global Office (ou cria os boletos avulsos se a GEAP não tiver valores em aberto), baixa os boletos do mês vigente em diante e envia por e-mail. Boleto do mês vencido e não enviado é reemitido com vencimento em 2 dias.' },
+      { id: 'baixar', nome: 'Baixar boletos', desc: 'Do Global Office para a pasta do cliente', detalhe: 'Baixa os boletos em aberto do mês vigente em diante para a pasta BOLETOS DO ACORDO no Dropbox. O boleto do mês é sempre baixado de novo, caso tenha sido reemitido.' },
+      { id: 'acordo', nome: 'Subir acordo judicial', desc: 'Cadastro de devedores, conferido pelo CPF', detalhe: 'Abre o devedor certo pelo CPF (homônimos não são escolhidos às cegas), preenche o acordo a partir do termo e da planilha e grava após sua confirmação.' },
+      { id: 'email', nome: 'Enviar boletos por e-mail', desc: 'Webmail, com histórico para não enviar em dobro', detalhe: 'Procura o e-mail na lista de envio, no termo e na planilha da LAYNA. Pergunta quando não encontra. Anexa até 20 boletos por vez.' },
+      { id: 'termos', nome: 'Gerador de termos', desc: 'Termo de acordo a partir da planilha', detalhe: 'Gera o termo de acordo no modelo do escritório com os dados da planilha, pronto para assinatura.' },
+      { id: 'concilia', nome: 'Conciliação Sicoob', desc: 'Adimplência do mês a partir dos extratos', detalhe: 'Cruza boletos e PIX do Sicoob com as planilhas e os comprovantes do Dropbox e atualiza o status de cada cliente. Na dúvida, marca "sem registro – verificar".' },
+    ];
+    const id = this.state.robo;
+    const robos = lista.map((r) => ({
+      ...r,
+      pressed: r.id === id ? 'true' : 'false',
+      estilo: r.id === id
+        ? 'width:100%;min-height:72px;padding:14px 18px;border-radius:12px;border:1px solid #21160F;background:#21160F;color:#F3E7CC;font:inherit;cursor:pointer;display:flex'
+        : 'width:100%;min-height:72px;padding:14px 18px;border-radius:12px;border:1px solid #E2D6C1;background:#FFFCF6;color:#1F1712;font:inherit;cursor:pointer;display:flex',
+      pick: () => this.setState({ robo: r.id }),
+    }));
+    const atual = lista.find((r) => r.id === id);
+    const est = {
+      ok: 'color:#B9D4AE;font-weight:600',
+      run: 'color:#E8C77E;font-weight:600',
+      wait: 'color:#A8957A',
+      warn: 'color:#F0A99C;font-weight:600',
+    };
+    const lote = [
+      { n: 1, nome: 'Helena Marques Duarte', status: 'Processamento completo', e: 'ok' },
+      { n: 2, nome: 'Otávio Lins Barreto', status: 'Processamento completo', e: 'ok' },
+      { n: 3, nome: 'Regina Paes Valadares', status: 'Enviando os boletos por e-mail', e: 'run' },
+      { n: 4, nome: 'Caio Ferraz Monteiro', status: 'Aguardando', e: 'wait' },
+      { n: 5, nome: 'Lúcia Tavares Rocha', status: 'Aguardando', e: 'wait' },
+    ].map((l) => ({ ...l, estilo: est[l.e] }));
+    return { robos, atual, lote };
+  }
+}
+</script>
+</body>
+</html>

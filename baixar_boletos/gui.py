@@ -1,4 +1,5 @@
 from typing import Optional
+from datetime import datetime
 import os
 import re
 import sys
@@ -561,6 +562,12 @@ class AppBaixarBoletos(tk.Tk):
                 except Exception as ex_dl:
                     self.log(f"Acordo de '{cliente}' foi enviado, mas houve erro ao baixar os boletos: {ex_dl}. "
                              "Use BAIXAR BOLETOS para tentar de novo.", "WARNING")
+
+                # Boleto deste mês vencido e ainda não enviado: reemite para daqui a 2 dias
+                if baixados is not None and not self._cancelado and not self._mes_atual_ja_enviado(service, cliente):
+                    txt, _ = self._reemitir_vencido(service, cliente, visivel)
+                    if txt:
+                        self.log(f"'{cliente}': {txt}", "SUCCESS" if "reemitido p/" in txt and "NÃO" not in txt else "WARNING")
         except ProcessamentoCancelado:
             self.log(f"Processamento de '{cliente}' PARADO pelo usuário.", "WARNING")
         except Exception as e:
@@ -632,6 +639,35 @@ class AppBaixarBoletos(tk.Tk):
                 try: dl.fechar_sessao()
                 except Exception: pass
         return 0
+
+    def _mes_atual_ja_enviado(self, service, nome: str) -> bool:
+        """Planilha marca ENVIADO ou o histórico de e-mails já tem o boleto deste mês."""
+        try:
+            alvo = normalizar_texto(nome)
+            if any(normalizar_texto(n) == alvo and st == "ENVIADO" for n, st in service.lista_parcelados_com_status()):
+                return True
+        except Exception:
+            pass
+        return email_service.mes_ja_enviado(nome, (datetime.now().year, datetime.now().month))
+
+    def _reemitir_vencido(self, service, nome: str, visivel: bool):
+        """Boleto deste mês vencido e ainda não enviado: cria um novo para daqui a 2 dias e o
+        baixa por cima do vencido. Devolve (texto para o resumo, pode_enviar_email)."""
+        try:
+            novos = service.reemitir_boleto_vencido_mes(nome, visivel=visivel)
+        except ProcessamentoCancelado:
+            raise
+        except Exception as e:
+            self.log(f"Reemissão do boleto vencido de '{nome}' falhou: {str(e).splitlines()[0][:120]}", "WARNING")
+            novos = None
+        if novos is None:
+            return "ATENÇÃO: boleto vencido do mês NÃO reemitido (e-mail não enviado)", False
+        if not novos:
+            return "", True
+        baixou = self._baixar_apos_acordo(service, nome, visivel, reusar_sessao=False)
+        if not baixou:
+            return f"boleto reemitido p/ {novos[0]}, mas NÃO baixado (e-mail não enviado)", False
+        return f"boleto vencido reemitido p/ {novos[0]}", True
 
     # ── PARAR / estado ocupado ──
     def parar_processamento(self):
@@ -819,7 +855,11 @@ class AppBaixarBoletos(tk.Tk):
         self.after(0, lambda: messagebox.showinfo("Resultado do lote", texto, parent=self))
 
     def _confirmar_boletos_novos(self, resumo: str) -> bool:
-        """Pergunta antes de gravar boletos pelo +NOVO (aviso 'Ficha financeira não atualizada')."""
+        """Pergunta antes de gravar boletos pelo +NOVO (aviso 'Ficha financeira não atualizada')
+        e antes de subir um acordo cujos valores não puderam ser conferidos com o termo."""
+        if resumo.startswith("CONFERIR ANTES DE SUBIR O ACORDO"):
+            return self._perguntar("Conferir valores do acordo",
+                                   resumo + "\n\nSIM = subir o acordo   |   NÃO = não subir") is True
         return self._perguntar(
             "Gravar boletos novos?",
             "A GEAP não tem valores em aberto para este cliente, então o acordo não pode ser subido.\n"
@@ -1001,6 +1041,7 @@ class AppBaixarBoletos(tk.Tk):
             self.log(f"  PULADO para conferência manual: {item}", "WARNING")
 
         total = len(lista)
+        status_planilha = dict(todos)
         # Painel de andamento: todos os nomes na ordem (os pulados pela planilha já marcados)
         self._andamento_iniciar([n for n, _ in todos] if nomes is not None else [n for n, _ in lista])
         for n, r in resultados:
@@ -1096,8 +1137,16 @@ class AppBaixarBoletos(tk.Tk):
                         erro_count += 1
                         resultado = "FALHOU: acordo e boletos avulsos não criados (ver log)"
 
-                # 3. E-mail (só com boletos na pasta)
-                if enviar_email and boletos_ok and not self._cancelado:
+                # 3. Boleto deste mês vencido e ainda não enviado: reemite para daqui a 2 dias
+                pode_enviar = True
+                if boletos_ok and not self._cancelado and status_planilha.get(nome) != "ENVIADO":
+                    self._etapa(nome, "Conferindo se o boleto do mês já venceu")
+                    txt, pode_enviar = self._reemitir_vencido(service, nome, visivel)
+                    if txt:
+                        resultado += " | " + txt
+
+                # 4. E-mail (só com boletos na pasta)
+                if enviar_email and boletos_ok and pode_enviar and not self._cancelado:
                     self._etapa(nome, "Agora enviando os boletos por e-mail")
                     try:
                         resultado += " | " + no_webmail(self._enviar_email_no_lote, nome, email_svc,
